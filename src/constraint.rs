@@ -381,16 +381,25 @@ impl<'a> RelativeCellIter<'a, ISizePairIterator<'a>> {
     }
 }
 
-/// A trait for `Constraint`s that are defined by having no duplicate numbers
-/// in some relative configuration to the reference cell. As an example, the
-/// constraint that no diagonally adjacent cells have the same number may be
-/// formulated as a `RelativeCellConstraint` with the relative coordinates
-/// `[(-1, -1), (-1, +1), (+1, -1), (+1, +1)]`.
+/// A trait for `Constraint`s that are defined by having no forbidden numbers
+/// in some relative configuration to the reference cell. Whether a number is
+/// forbidden is defined by [is_forbidden](#method.is_forbidden), which is a
+/// boolean relation between the reference cell and the other cell. By default,
+/// this checks for equality.
+///
+/// As an example, the constraint that no diagonally adjacent cells have the
+/// same number may be formulated as a `RelativeCellConstraint` with the
+/// relative coordinates `[(-1, -1), (-1, +1), (+1, -1), (+1, +1)]`, with the
+/// default equality being used for `is_forbidden`.
 pub trait RelativeCellConstraint {
 
     /// A slice of coordinates relative to the cell in question that must not
     /// contain the same number.
     const RELATIVE_COORDINATES: &'static [(isize, isize)];
+
+    fn is_forbidden(&self, reference_cell: usize, other_cell: usize) -> bool {
+        reference_cell == other_cell
+    }
 }
 
 impl<C: RelativeCellConstraint> Constraint for C {
@@ -401,7 +410,7 @@ impl<C: RelativeCellConstraint> Constraint for C {
         
         for other_cell in iter {
             if let Some(other_number) = other_cell {
-                if number == other_number {
+                if self.is_forbidden(number, other_number) {
                     return false;
                 }
             }
@@ -501,6 +510,38 @@ const DIAGONALLY_ADJACENT: [(isize, isize); 4] = [
 impl RelativeCellConstraint for DiagonallyAdjacentConstraint {
     const RELATIVE_COORDINATES: &'static [(isize, isize)] =
         &DIAGONALLY_ADJACENT;
+}
+
+/// A `RelativeCellConstraint` that excludes consecutive digits in orthogonally
+/// adjacent cells. As a visualization, the cells marked with 'X' in the
+/// following grid are excluded from being a 2 or a 4:
+///
+/// ```text
+/// ┌───┬───┬───┐
+/// │   │ X │   │
+/// ├───┼───┼───┤
+/// │ X │ 3 │ X │
+/// ├───┼───┼───┤
+/// │   │ X │   │
+/// └───┴───┴───┘
+/// ```
+#[derive(Clone)]
+pub struct AdjacentConsecutiveConstraint;
+
+const ORTHOGONALLY_ADJACENT: [(isize, isize); 4] = [
+    (-1, 0),
+    (1, 0),
+    (0, -1),
+    (0, 1)
+];
+
+impl RelativeCellConstraint for AdjacentConsecutiveConstraint {
+    const RELATIVE_COORDINATES: &'static [(isize, isize)] =
+        &ORTHOGONALLY_ADJACENT;
+
+    fn is_forbidden(&self, reference_cell: usize, other_cell: usize) -> bool {
+        reference_cell + 1 == other_cell || reference_cell == other_cell + 1
+    }
 }
 
 /// A `Constraint` which simultaneously enforces two other constraints. This

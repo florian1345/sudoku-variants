@@ -136,6 +136,7 @@ mod tests {
     use super::*;
 
     use crate::constraint::{
+        AdjacentConsecutiveConstraint,
         CompositeConstraint,
         DefaultConstraint,
         DiagonalsConstraint,
@@ -174,6 +175,10 @@ mod tests {
     // No Kings Move: GP 2017 Round 1 (Puzzle 11)
     // Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2017/2017_SudokuRound1.pdf
     // Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2017/2017_SudokuRound1_SB.pdf
+
+    // No Adjacent Consecutive: GP 2019 Round 1 (Puzzle 7)
+    // Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2019/2019_SudokuRound1.pdf
+    // Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2019/2019_SudokuRound1_SB.pdf
 
     #[test]
     fn backtracking_solves_classic_sudoku() {
@@ -282,5 +287,31 @@ mod tests {
             CompositeConstraint::new(DefaultConstraint, KingsMoveConstraint));
         test_solves_correctly(puzzle, solution, CompositeConstraint::new(
             DefaultConstraint, DiagonallyAdjacentConstraint));
+    }
+
+    #[test]
+    fn backtracking_solves_adjacent_consecutive_sudoku() {
+        let puzzle = "3x3;\
+             , , , , , , , ,7,\
+             , ,3,8, , , , , ,\
+             ,4,6, , , , , , ,\
+             ,7, , ,2, , , , ,\
+             , , ,9,4,7, , , ,\
+             , , , ,8, , ,5, ,\
+             , , , , , , ,9, ,\
+             , , , , ,4,6,2, ,\
+            5, , , , , , , , ";
+        let solution = "3x3;\
+            2,5,8,4,1,6,9,3,7,\
+            7,1,3,8,5,9,2,6,4,\
+            9,4,6,3,7,2,5,8,1,\
+            3,7,1,6,2,5,8,4,9,\
+            8,2,5,9,4,7,3,1,6,\
+            4,6,9,1,8,3,7,5,2,\
+            6,8,2,7,3,1,4,9,5,\
+            1,3,7,5,9,4,6,2,8,\
+            5,9,4,2,6,8,1,7,3";
+        test_solves_correctly(puzzle, solution,CompositeConstraint::new(
+            DefaultConstraint, AdjacentConsecutiveConstraint));
     }
 }
