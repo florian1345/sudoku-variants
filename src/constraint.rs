@@ -691,7 +691,7 @@ mod tests {
     use crate::Sudoku;
 
     #[test]
-    fn test_row_satisfied() {
+    fn row_satisfied() {
         let code = "2x2;\
             1, , ,2,\
              ,2, ,3,\
@@ -705,7 +705,7 @@ mod tests {
     }
 
     #[test]
-    fn test_row_violated() {
+    fn row_violated() {
         let code = "2x2;\
             1, , ,2,\
              ,2, ,3,\
@@ -722,7 +722,7 @@ mod tests {
     }
 
     #[test]
-    fn test_column_satisfied() {
+    fn column_satisfied() {
         let code = "2x2;\
             1, ,3, ,\
              ,2, ,2,\
@@ -736,7 +736,7 @@ mod tests {
     }
 
     #[test]
-    fn test_column_violated() {
+    fn column_violated() {
         let code = "2x2;\
             1, ,3, ,\
              ,2, ,4,\
@@ -753,7 +753,7 @@ mod tests {
     }
 
     #[test]
-    fn test_block_satisfied() {
+    fn block_satisfied() {
         let code = "2x2;\
             1,2, , ,\
              ,3, ,3,\
@@ -767,7 +767,7 @@ mod tests {
     }
 
     #[test]
-    fn test_block_violated() {
+    fn block_violated() {
         let code = "2x2;\
             1, , ,3,\
              ,3, , ,\
@@ -781,5 +781,106 @@ mod tests {
         assert!(!sudoku.is_valid_number(2, 0, 3));
         assert!(!sudoku.is_valid_number(3, 3, 4));
         assert!(sudoku.is_valid_number(2, 1, 4));
+    }
+
+    #[test]
+    fn diagonals_satisfied() {
+        let code = "2x2;\
+            2,3,4,1,\
+             , , , ,\
+             , ,4, ,\
+            3, , ,3";
+        let sudoku = Sudoku::parse(code, DiagonalsConstraint).unwrap();
+        assert!(sudoku.is_valid());
+        assert!(sudoku.is_valid_cell(2, 2));
+        assert!(sudoku.is_valid_cell(3, 0));
+        assert!(sudoku.is_valid_cell(2, 0));
+        assert!(sudoku.is_valid_number(1, 1, 1));
+    }
+
+    #[test]
+    fn diagonals_violated() {
+        let code = "2x2;\
+            2,3,4,1,\
+             , , , ,\
+             , ,2, ,\
+            3, , ,4";
+        let sudoku = Sudoku::parse(code, DiagonalsConstraint).unwrap();
+        assert!(!sudoku.is_valid());
+        assert!(!sudoku.is_valid_cell(0, 0));
+        assert!(!sudoku.is_valid_cell(2, 2));
+        assert!(sudoku.is_valid_cell(0, 3));
+        assert!(sudoku.is_valid_cell(2, 0));
+        assert!(!sudoku.is_valid_number(1, 2, 1));
+        assert!(!sudoku.is_valid_number(1, 1, 4));
+        assert!(sudoku.is_valid_number(2, 2, 3));
+        assert!(sudoku.is_valid_number(1, 1, 3));
+    }
+
+    #[test]
+    fn knights_move_satisfied() {
+        let code = "2x2;\
+            1, ,3, ,\
+             ,2, ,3,\
+             ,4, ,1,\
+            1,4,1,2";
+        let sudoku = Sudoku::parse(code, KnightsMoveConstraint).unwrap();
+        assert!(sudoku.is_valid());
+        assert!(sudoku.is_valid_cell(3, 2));
+        assert!(sudoku.is_valid_cell(0, 2));
+        assert!(sudoku.is_valid_number(2, 1, 3));
+    }
+
+    #[test]
+    fn knights_move_violated() {
+        let code = "2x2;\
+            1, ,3, ,\
+             ,2, ,4,\
+             ,4, ,1,\
+            3, ,2, ";
+        let sudoku = Sudoku::parse(code, KnightsMoveConstraint).unwrap();
+        assert!(!sudoku.is_valid());
+        assert!(!sudoku.is_valid_cell(1, 1));
+        assert!(!sudoku.is_valid_cell(2, 3));
+        assert!(!sudoku.is_valid_cell(3, 1));
+        assert!(!sudoku.is_valid_cell(1, 2));
+        assert!(sudoku.is_valid_cell(2, 0));
+        assert!(sudoku.is_valid_cell(2, 1));
+        assert!(!sudoku.is_valid_number(2, 2, 3));
+        assert!(sudoku.is_valid_number(1, 1, 4));
+    }
+
+    #[test]
+    fn kings_move_satisfied() {
+        let code = "2x2;\
+            2,3, , ,\
+             ,4,2,1,\
+             ,1, ,4,\
+             ,2, ,2";
+        let sudoku = Sudoku::parse(code, KingsMoveConstraint).unwrap();
+        assert!(sudoku.is_valid());
+        assert!(sudoku.is_valid_cell(1, 1));
+        assert!(sudoku.is_valid_cell(1, 3));
+        assert!(sudoku.is_valid_number(2, 2, 3));
+    }
+
+    #[test]
+    fn kings_move_violated() {
+        let code = "2x2;\
+            1,3, , ,\
+             ,2,2,1,\
+             ,1, ,4,\
+             , ,1,3";
+        let sudoku = Sudoku::parse(code, KingsMoveConstraint).unwrap();
+        assert!(!sudoku.is_valid());
+        assert!(!sudoku.is_valid_cell(1, 1));
+        assert!(!sudoku.is_valid_cell(2, 1));
+        assert!(!sudoku.is_valid_cell(1, 2));
+        assert!(!sudoku.is_valid_cell(2, 3));
+        assert!(sudoku.is_valid_cell(3, 2));
+        assert!(sudoku.is_valid_cell(2, 2));
+        assert!(!sudoku.is_valid_number(2, 2, 3));
+        assert!(!sudoku.is_valid_number(2, 2, 4));
+        assert!(sudoku.is_valid_number(2, 0, 4));
     }
 }

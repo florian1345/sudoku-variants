@@ -246,4 +246,69 @@ mod tests {
             panic!("Reduced Sudoku not uniquely solveable.")
         }
     }
+
+    /// This is a deliberately bad solver which only checks differet options
+    /// for the top-left cell of each Sudoku. If any other cells are missing,
+    /// or there are multiple options for the top-left cell, the solver returns
+    /// `Solution::Ambiguous`.
+    struct TopLeftSolver;
+
+    impl Solver for TopLeftSolver {
+        fn solve(&self, sudoku: &Sudoku<impl Constraint + Clone>) -> Solution {
+            let size = sudoku.grid().size();
+            let cells = size * size;
+            let clues = sudoku.grid().count_clues();
+
+            if clues == cells {
+                // Sudoku is full anyway
+                return Solution::Unique(sudoku.grid().clone());
+            }
+            else if clues < cells - 1 {
+                // Sudoku missing other digit anyway
+                return Solution::Ambiguous;
+            }
+
+            if let Some(_) = sudoku.grid().get_cell(0, 0).unwrap() {
+                // Somewhere else a cell must be missing
+                Solution::Ambiguous
+            }
+            else {
+                let mut number = None;
+
+                for i in 1..=size {
+                    if sudoku.is_valid_number(0, 0, i) {
+                        if number == None {
+                            number = Some(i);
+                        }
+                        else {
+                            // Multiple options for top-left cell
+                            return Solution::Ambiguous;
+                        }
+                    }
+                }
+
+                if let Some(number) = number {
+                    let mut result_grid = sudoku.grid().clone();
+                    result_grid.set_cell(0, 0, number).unwrap();
+                    Solution::Unique(result_grid)
+                }
+                else {
+                    Solution::Impossible
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn reduced_sudoku_solveable_by_solver() {
+        let mut sudoku = generate_default();
+        let mut reducer = Reducer::new(TopLeftSolver, rand::thread_rng());
+        reducer.reduce(&mut sudoku);
+
+        let size = DEFAULT_BLOCK_WIDTH * DEFAULT_BLOCK_HEIGHT;
+        assert_eq!(size * size - 1, sudoku.grid().count_clues(),
+            "Reduced Sudoku missing too many clues or not reduced at all.");
+        assert_eq!(None, sudoku.grid().get_cell(0, 0).unwrap(),
+            "Reduced Sudoku missing wrong clue.");
+    }
 }

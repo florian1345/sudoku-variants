@@ -817,4 +817,26 @@ mod tests {
         assert_eq!(Err(SudokuParseError::WrongNumberOfCells),
             SudokuGrid::parse("2x2;1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4,1"));
     }
+
+    #[test]
+    fn size() {
+        let grid1x1 = SudokuGrid::new(1, 1).unwrap();
+        let grid3x2 = SudokuGrid::new(3, 2).unwrap();
+        let grid3x4 = SudokuGrid::new(3, 4).unwrap();
+        assert_eq!(1, grid1x1.size());
+        assert_eq!(6, grid3x2.size());
+        assert_eq!(12, grid3x4.size());
+    }
+
+    #[test]
+    fn count_clues() {
+        assert_eq!(0,
+            SudokuGrid::parse("2x2;,,,,,,,,,,,,,,,").unwrap().count_clues());
+        assert_eq!(5, SudokuGrid::parse(
+                "2x2;1,,3,2,4,,,,,,,,,,1,"
+            ).unwrap().count_clues());
+        assert_eq!(16, SudokuGrid::parse(
+                "2x2;2,3,4,1,1,4,2,3,4,1,3,2,3,2,1,4"
+            ).unwrap().count_clues());
+    }
 }
