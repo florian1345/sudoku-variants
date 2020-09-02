@@ -60,7 +60,7 @@
 //! # Custom constraints
 //!
 //! When implementing a constraint, it is usually sufficient to implement
-//! [Constraint.check_number](trait.Constraint.html#method.check_number). All
+//! [Constraint.check_number](trait.Constraint.html#tymethod.check_number). All
 //! other methods are default-implemented based on it. However, the performance
 //! of [Constraint.check](trait.Constraint.html#method.check) could be improved
 //! by a specialized implementation, since by default it calls `check_number`
@@ -397,6 +397,29 @@ pub trait RelativeCellConstraint {
     /// contain the same number.
     const RELATIVE_COORDINATES: &'static [(isize, isize)];
 
+    /// Given the contents of the reference cell and one other cell that is
+    /// removed by one set of coordinates specified in
+    /// [RELATIVE_COORDINATES](#associatedconstant.RELATIVE_COORDINATES), this
+    /// method determines whether the reference cell violates the constraint.
+    /// Since it is assumed that an empty cell cannot violate the constraint,
+    /// this method is only called if both cells contain a number.
+    ///
+    /// As an example, for ordinary constraints such as the no-knight's-move-
+    /// constraint, this is usually an equality check. A cell removed by a
+    /// knight's move may not be equal to the reference cell. This is actually
+    /// the default behavior for this method.
+    ///
+    /// However, in some situations this may be different. As an example, for
+    /// the no-adjacent-consecutive-constraint, this is a predicate that
+    /// determines whether the two numbers are consecutive.
+    ///
+    /// # Arguments
+    ///
+    /// * `reference_cell`: The cell which is currently tested, i.e. relative
+    /// to which the coordinates are defined.
+    /// * `other_cell`: A cell removed from the `reference_cell` by a set of
+    /// coordinates from
+    /// [RELATIVE_COORDINATES](#associatedconstant.RELATIVE_COORDINATES).
     fn is_forbidden(&self, reference_cell: usize, other_cell: usize) -> bool {
         reference_cell == other_cell
     }
