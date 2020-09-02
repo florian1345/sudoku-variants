@@ -35,7 +35,8 @@
 //! To check validity, an instance of [Sudoku](struct.Sudoku.html) not only
 //! contains the numbers (stored in a [SudokuGrid](struct.SudokuGrid.html)),
 //! but also some constraint which specifies the rules. For classic Sudoku
-//! rules, [DefaultConstraint](struct.DefaultConstraint.html) can be used.
+//! rules, [DefaultConstraint](constraint/struct.DefaultConstraint.html) can be
+//! used.
 //!
 //! It is possible to check an entire Sudoku, individual cells, or potential
 //! changes to individual cells that do not require changing the Sudoku's
@@ -85,12 +86,13 @@
 //! another example.
 //!
 //! All examples above have been using the
-//! [DefaultConstraint](struct.DefaultConstraint.html), which is actually a
-//! composition of [RowConstraint](struct.RowConstraint.html),
-//! [ColumnConstraint](struct.ColumnConstraint.html), and
-//! [BlockConstraint](struct.BlockConstraint.html). Additionally to those three
-//! primitives, a few more common Sudoku variants' rules are provided, which
-//! can be combined into more exciting rule sets. Check out the
+//! [DefaultConstraint](constraint/struct.DefaultConstraint.html), which is
+//! actually a composition of
+//! [RowConstraint](constraint/struct.RowConstraint.html),
+//! [ColumnConstraint](constraint/struct.ColumnConstraint.html), and
+//! [BlockConstraint](constraint/struct.BlockConstraint.html). Additionally to
+//! those three primitives, a few more common Sudoku variants' rules are
+//! provided, which can be combined into more exciting rule sets. Check out the
 //! [constraint](constraint/index.html) module for more details and
 //! instructions on how to write your own rules.
 //!
@@ -736,7 +738,7 @@ impl<C: Constraint + Clone> Sudoku<C> {
     /// configurations which violate this constraint will be seen as invalid by
     /// [Sudoku.is_valid](struct.Sudoku.html#method.is_valid).
     ///
-    /// * Errors
+    /// # Errors
     ///
     /// If the parsing fails. See
     /// [SudokuGrid::parse](struct.SudokuGrid.html#method.parse) for further
@@ -782,6 +784,24 @@ impl<C: Constraint + Clone> Sudoku<C> {
         }
     }
 
+    /// Indicates whether the given number would be valid in the cell at the
+    /// given location. That is, if the number violated the constraint, `false`
+    /// is returned, and `true` otherwise.
+    ///
+    /// # Arguments
+    ///
+    /// * `column`: The column (x-coordinate) of the checked cell. Must be in
+    /// the range `[0, size[`.
+    /// * `row`: The row (y-coordinate) of the checked cell. Must be in the
+    /// range `[0, size[`.
+    /// * `number`: The number to check whether it is valid in the given cell.
+    ///
+    /// # Errors
+    ///
+    /// * `SudokuError::OutOfBounds` If either `column` or `row` are not in the
+    /// specified range.
+    /// * `SudokuError::InvalidNumber` If `number` is not in the specified
+    /// range.
     pub fn is_valid_number(&self, column: usize, row: usize, number: usize)
             -> SudokuResult<bool> {
         let size = self.grid.size();

@@ -2,7 +2,7 @@
 //!
 //! Generation of Sudoku puzzles is done by first generating a full grid with a
 //! [Generator](struct.Generator.html) and then removing some clues using a
-//! [Solver](struct.Solver.html).
+//! [Reducer](struct.Reducer.html).
 
 use crate::Sudoku;
 use crate::constraint::Constraint;
@@ -127,8 +127,8 @@ impl<R: Rng> Generator<R> {
 /// suboptimal to control the difficulty. A random number generator decides
 /// which digits are removed.
 ///
-/// [Reducer::new_default](#new_default) will yield a reducer with the highest
-/// difficulty (a perfect backtracking solver) and a
+/// [Reducer::new_default](#method.new_default) will yield a reducer with the
+/// highest difficulty (a perfect backtracking solver) and a
 /// [ThreadRng](https://rust-random.github.io/rand/rand/rngs/struct.ThreadRng.html).
 pub struct Reducer<S: Solver, R: Rng> {
     solver: S,
@@ -138,8 +138,8 @@ pub struct Reducer<S: Solver, R: Rng> {
 impl Reducer<BacktrackingSolver, ThreadRng> {
 
     /// Generates a new reducer with a
-    /// [BacktrackingSolver](../solver/BacktrackingSolver.html) to check unique
-    /// solveability and a
+    /// [BacktrackingSolver](../solver/struct.BacktrackingSolver.html) to check
+    /// unique solveability and a
     /// [ThreadRng](https://rust-random.github.io/rand/rand/rngs/struct.ThreadRng.html)
     /// to decide which digits are removed.
     pub fn new_default() -> Reducer<BacktrackingSolver, ThreadRng> {
