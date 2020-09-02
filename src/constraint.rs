@@ -699,9 +699,9 @@ mod tests {
             3, , ,2";
         let sudoku = Sudoku::parse(code, RowConstraint).unwrap();
         assert!(sudoku.is_valid());
-        assert!(sudoku.is_valid_cell(3, 2));
-        assert!(sudoku.is_valid_cell(3, 3));
-        assert!(sudoku.is_valid_number(2, 2, 3));
+        assert!(sudoku.is_valid_cell(3, 2).unwrap());
+        assert!(sudoku.is_valid_cell(3, 3).unwrap());
+        assert!(sudoku.is_valid_number(2, 2, 3).unwrap());
     }
 
     #[test]
@@ -713,12 +713,12 @@ mod tests {
             4, , ,4";
         let sudoku = Sudoku::parse(code, RowConstraint).unwrap();
         assert!(!sudoku.is_valid());
-        assert!(!sudoku.is_valid_cell(0, 3));
-        assert!(!sudoku.is_valid_cell(3, 3));
-        assert!(sudoku.is_valid_cell(2, 2));
-        assert!(!sudoku.is_valid_number(2, 0, 1));
-        assert!(!sudoku.is_valid_number(2, 1, 3));
-        assert!(sudoku.is_valid_number(3, 3, 1));
+        assert!(!sudoku.is_valid_cell(0, 3).unwrap());
+        assert!(!sudoku.is_valid_cell(3, 3).unwrap());
+        assert!(sudoku.is_valid_cell(2, 2).unwrap());
+        assert!(!sudoku.is_valid_number(2, 0, 1).unwrap());
+        assert!(!sudoku.is_valid_number(2, 1, 3).unwrap());
+        assert!(sudoku.is_valid_number(3, 3, 1).unwrap());
     }
 
     #[test]
@@ -730,9 +730,9 @@ mod tests {
              ,4, , ";
         let sudoku = Sudoku::parse(code, ColumnConstraint).unwrap();
         assert!(sudoku.is_valid());
-        assert!(sudoku.is_valid_cell(1, 1));
-        assert!(sudoku.is_valid_cell(1, 2));
-        assert!(sudoku.is_valid_number(3, 0, 3));
+        assert!(sudoku.is_valid_cell(1, 1).unwrap());
+        assert!(sudoku.is_valid_cell(1, 2).unwrap());
+        assert!(sudoku.is_valid_number(3, 0, 3).unwrap());
     }
 
     #[test]
@@ -744,12 +744,12 @@ mod tests {
              ,4, , ";
         let sudoku = Sudoku::parse(code, ColumnConstraint).unwrap();
         assert!(!sudoku.is_valid());
-        assert!(!sudoku.is_valid_cell(0, 0));
-        assert!(!sudoku.is_valid_cell(0, 2));
-        assert!(sudoku.is_valid_cell(1, 1));
-        assert!(!sudoku.is_valid_number(2, 1, 3));
-        assert!(!sudoku.is_valid_number(1, 0, 4));
-        assert!(sudoku.is_valid_number(3, 3, 1));
+        assert!(!sudoku.is_valid_cell(0, 0).unwrap());
+        assert!(!sudoku.is_valid_cell(0, 2).unwrap());
+        assert!(sudoku.is_valid_cell(1, 1).unwrap());
+        assert!(!sudoku.is_valid_number(2, 1, 3).unwrap());
+        assert!(!sudoku.is_valid_number(1, 0, 4).unwrap());
+        assert!(sudoku.is_valid_number(3, 3, 1).unwrap());
     }
 
     #[test]
@@ -761,9 +761,9 @@ mod tests {
             3, , ,1";
         let sudoku = Sudoku::parse(code, BlockConstraint).unwrap();
         assert!(sudoku.is_valid());
-        assert!(sudoku.is_valid_cell(1, 1));
-        assert!(sudoku.is_valid_cell(3, 2));
-        assert!(sudoku.is_valid_number(3, 2, 2));
+        assert!(sudoku.is_valid_cell(1, 1).unwrap());
+        assert!(sudoku.is_valid_cell(3, 2).unwrap());
+        assert!(sudoku.is_valid_number(3, 2, 2).unwrap());
     }
 
     #[test]
@@ -775,12 +775,12 @@ mod tests {
             2, , ,1";
         let sudoku = Sudoku::parse(code, BlockConstraint).unwrap();
         assert!(!sudoku.is_valid());
-        assert!(!sudoku.is_valid_cell(0, 3));
-        assert!(!sudoku.is_valid_cell(1, 2));
-        assert!(sudoku.is_valid_cell(1, 1));
-        assert!(!sudoku.is_valid_number(2, 0, 3));
-        assert!(!sudoku.is_valid_number(3, 3, 4));
-        assert!(sudoku.is_valid_number(2, 1, 4));
+        assert!(!sudoku.is_valid_cell(0, 3).unwrap());
+        assert!(!sudoku.is_valid_cell(1, 2).unwrap());
+        assert!(sudoku.is_valid_cell(1, 1).unwrap());
+        assert!(!sudoku.is_valid_number(2, 0, 3).unwrap());
+        assert!(!sudoku.is_valid_number(3, 3, 4).unwrap());
+        assert!(sudoku.is_valid_number(2, 1, 4).unwrap());
     }
 
     #[test]
@@ -792,10 +792,10 @@ mod tests {
             3, , ,3";
         let sudoku = Sudoku::parse(code, DiagonalsConstraint).unwrap();
         assert!(sudoku.is_valid());
-        assert!(sudoku.is_valid_cell(2, 2));
-        assert!(sudoku.is_valid_cell(3, 0));
-        assert!(sudoku.is_valid_cell(2, 0));
-        assert!(sudoku.is_valid_number(1, 1, 1));
+        assert!(sudoku.is_valid_cell(2, 2).unwrap());
+        assert!(sudoku.is_valid_cell(3, 0).unwrap());
+        assert!(sudoku.is_valid_cell(2, 0).unwrap());
+        assert!(sudoku.is_valid_number(1, 1, 1).unwrap());
     }
 
     #[test]
@@ -807,14 +807,14 @@ mod tests {
             3, , ,4";
         let sudoku = Sudoku::parse(code, DiagonalsConstraint).unwrap();
         assert!(!sudoku.is_valid());
-        assert!(!sudoku.is_valid_cell(0, 0));
-        assert!(!sudoku.is_valid_cell(2, 2));
-        assert!(sudoku.is_valid_cell(0, 3));
-        assert!(sudoku.is_valid_cell(2, 0));
-        assert!(!sudoku.is_valid_number(1, 2, 1));
-        assert!(!sudoku.is_valid_number(1, 1, 4));
-        assert!(sudoku.is_valid_number(2, 2, 3));
-        assert!(sudoku.is_valid_number(1, 1, 3));
+        assert!(!sudoku.is_valid_cell(0, 0).unwrap());
+        assert!(!sudoku.is_valid_cell(2, 2).unwrap());
+        assert!(sudoku.is_valid_cell(0, 3).unwrap());
+        assert!(sudoku.is_valid_cell(2, 0).unwrap());
+        assert!(!sudoku.is_valid_number(1, 2, 1).unwrap());
+        assert!(!sudoku.is_valid_number(1, 1, 4).unwrap());
+        assert!(sudoku.is_valid_number(2, 2, 3).unwrap());
+        assert!(sudoku.is_valid_number(1, 1, 3).unwrap());
     }
 
     #[test]
@@ -826,9 +826,9 @@ mod tests {
             1,4,1,2";
         let sudoku = Sudoku::parse(code, KnightsMoveConstraint).unwrap();
         assert!(sudoku.is_valid());
-        assert!(sudoku.is_valid_cell(3, 2));
-        assert!(sudoku.is_valid_cell(0, 2));
-        assert!(sudoku.is_valid_number(2, 1, 3));
+        assert!(sudoku.is_valid_cell(3, 2).unwrap());
+        assert!(sudoku.is_valid_cell(0, 2).unwrap());
+        assert!(sudoku.is_valid_number(2, 1, 3).unwrap());
     }
 
     #[test]
@@ -840,14 +840,14 @@ mod tests {
             3, ,2, ";
         let sudoku = Sudoku::parse(code, KnightsMoveConstraint).unwrap();
         assert!(!sudoku.is_valid());
-        assert!(!sudoku.is_valid_cell(1, 1));
-        assert!(!sudoku.is_valid_cell(2, 3));
-        assert!(!sudoku.is_valid_cell(3, 1));
-        assert!(!sudoku.is_valid_cell(1, 2));
-        assert!(sudoku.is_valid_cell(2, 0));
-        assert!(sudoku.is_valid_cell(2, 1));
-        assert!(!sudoku.is_valid_number(2, 2, 3));
-        assert!(sudoku.is_valid_number(1, 1, 4));
+        assert!(!sudoku.is_valid_cell(1, 1).unwrap());
+        assert!(!sudoku.is_valid_cell(2, 3).unwrap());
+        assert!(!sudoku.is_valid_cell(3, 1).unwrap());
+        assert!(!sudoku.is_valid_cell(1, 2).unwrap());
+        assert!(sudoku.is_valid_cell(2, 0).unwrap());
+        assert!(sudoku.is_valid_cell(2, 1).unwrap());
+        assert!(!sudoku.is_valid_number(2, 2, 3).unwrap());
+        assert!(sudoku.is_valid_number(1, 1, 4).unwrap());
     }
 
     #[test]
@@ -859,9 +859,9 @@ mod tests {
              ,2, ,2";
         let sudoku = Sudoku::parse(code, KingsMoveConstraint).unwrap();
         assert!(sudoku.is_valid());
-        assert!(sudoku.is_valid_cell(1, 1));
-        assert!(sudoku.is_valid_cell(1, 3));
-        assert!(sudoku.is_valid_number(2, 2, 3));
+        assert!(sudoku.is_valid_cell(1, 1).unwrap());
+        assert!(sudoku.is_valid_cell(1, 3).unwrap());
+        assert!(sudoku.is_valid_number(2, 2, 3).unwrap());
     }
 
     #[test]
@@ -873,14 +873,136 @@ mod tests {
              , ,1,3";
         let sudoku = Sudoku::parse(code, KingsMoveConstraint).unwrap();
         assert!(!sudoku.is_valid());
-        assert!(!sudoku.is_valid_cell(1, 1));
-        assert!(!sudoku.is_valid_cell(2, 1));
-        assert!(!sudoku.is_valid_cell(1, 2));
-        assert!(!sudoku.is_valid_cell(2, 3));
-        assert!(sudoku.is_valid_cell(3, 2));
-        assert!(sudoku.is_valid_cell(2, 2));
-        assert!(!sudoku.is_valid_number(2, 2, 3));
-        assert!(!sudoku.is_valid_number(2, 2, 4));
-        assert!(sudoku.is_valid_number(2, 0, 4));
+        assert!(!sudoku.is_valid_cell(1, 1).unwrap());
+        assert!(!sudoku.is_valid_cell(2, 1).unwrap());
+        assert!(!sudoku.is_valid_cell(1, 2).unwrap());
+        assert!(!sudoku.is_valid_cell(2, 3).unwrap());
+        assert!(sudoku.is_valid_cell(3, 2).unwrap());
+        assert!(sudoku.is_valid_cell(2, 2).unwrap());
+        assert!(!sudoku.is_valid_number(2, 2, 3).unwrap());
+        assert!(!sudoku.is_valid_number(2, 2, 4).unwrap());
+        assert!(sudoku.is_valid_number(2, 0, 4).unwrap());
+    }
+
+    #[test]
+    fn diagonally_adjacent_satisfied() {
+        let code = "2x2;\
+            1,3, , ,\
+             ,3,2, ,\
+            2,1,1, ,\
+            4, , , ";
+        let sudoku =
+            Sudoku::parse(code, DiagonallyAdjacentConstraint).unwrap();
+        assert!(sudoku.is_valid());
+        assert!(sudoku.is_valid_cell(1, 1).unwrap());
+        assert!(sudoku.is_valid_cell(2, 2).unwrap());
+        assert!(sudoku.is_valid_number(1, 2, 3).unwrap());
+    }
+
+    #[test]
+    fn diagonally_adjacent_violated() {
+        let code = "2x2;\
+            1,2, , ,\
+             ,3,2, ,\
+             ,2, ,4,\
+            4, ,1, ";
+        let sudoku =
+            Sudoku::parse(code, DiagonallyAdjacentConstraint).unwrap();
+        assert!(!sudoku.is_valid());
+        assert!(!sudoku.is_valid_cell(1, 0).unwrap());
+        assert!(!sudoku.is_valid_cell(2, 1).unwrap());
+        assert!(sudoku.is_valid_cell(1, 1).unwrap());
+        assert!(!sudoku.is_valid_number(2, 1, 4).unwrap());
+        assert!(!sudoku.is_valid_number(3, 0, 2).unwrap());
+        assert!(sudoku.is_valid_number(1, 2, 3).unwrap());
+    }
+
+    #[test]
+    fn adjacent_consecutive_satisfied() {
+        let code = "2x2;\
+            4,2,4,1,\
+             ,4, ,3,\
+             ,1,3, ,\
+            2, ,1, ";
+        let sudoku =
+            Sudoku::parse(code, AdjacentConsecutiveConstraint).unwrap();
+        assert!(sudoku.is_valid());
+        assert!(sudoku.is_valid_cell(1, 1).unwrap());
+        assert!(sudoku.is_valid_cell(2, 2).unwrap());
+        assert!(sudoku.is_valid_number(2, 1, 1).unwrap());
+    }
+
+    #[test]
+    fn adjacent_consecutive_violated() {
+        let code = "2x2;\
+            4,2, ,1,\
+             ,3, ,4,\
+             ,1,3,2,\
+            2, , , ";
+        let sudoku =
+            Sudoku::parse(code, AdjacentConsecutiveConstraint).unwrap();
+        assert!(!sudoku.is_valid());
+        assert!(!sudoku.is_valid_cell(1, 0).unwrap());
+        assert!(!sudoku.is_valid_cell(1, 1).unwrap());
+        assert!(!sudoku.is_valid_cell(2, 2).unwrap());
+        assert!(!sudoku.is_valid_cell(3, 2).unwrap());
+        assert!(sudoku.is_valid_cell(1, 2).unwrap());
+        assert!(!sudoku.is_valid_number(2, 1, 2).unwrap());
+        assert!(sudoku.is_valid_number(1, 0, 1).unwrap());
+    }
+
+    fn test_column_row_satisfied(constraint: impl Constraint + Clone) {
+        let code = "2x2;\
+            2,4, ,1,\
+            1,3,2, ,\
+             ,1, ,3,\
+            4, ,3, ";
+        let sudoku = Sudoku::parse(code, constraint).unwrap();
+        assert!(sudoku.is_valid());
+        assert!(sudoku.is_valid_cell(1, 1).unwrap());
+        assert!(sudoku.is_valid_number(2, 2, 4).unwrap());
+    }
+
+    fn test_column_row_violated(constraint: impl Constraint + Clone) {
+        let code1 = "2x2;\
+            2,4, ,4,\
+            1,3,2, ,\
+             ,1, ,3,\
+            4, ,3, ";
+        let sudoku = Sudoku::parse(code1, constraint).unwrap();
+        assert!(!sudoku.is_valid());
+        assert!(!sudoku.is_valid_cell(1, 0).unwrap());
+        assert!(!sudoku.is_valid_cell(3, 0).unwrap());
+        assert!(sudoku.is_valid_cell(1, 1).unwrap());
+        assert!(!sudoku.is_valid_number(2, 2, 1).unwrap());
+        assert!(sudoku.is_valid_number(2, 0, 1).unwrap());
+    }
+
+    #[test]
+    fn composite_satisfied() {
+        test_column_row_satisfied(CompositeConstraint::new(
+            RowConstraint, ColumnConstraint));
+    }
+
+    #[test]
+    fn composite_violated() {
+        test_column_row_violated(CompositeConstraint::new(
+            RowConstraint, ColumnConstraint));
+    }
+
+    #[test]
+    fn dynamic_satisfied() {
+        test_column_row_satisfied(DynamicConstraint::new(vec![
+            Box::new(RowConstraint),
+            Box::new(ColumnConstraint)
+        ]));
+    }
+
+    #[test]
+    fn dynamic_violated() {
+        test_column_row_violated(DynamicConstraint::new(vec![
+            Box::new(RowConstraint),
+            Box::new(ColumnConstraint)
+        ]));
     }
 }

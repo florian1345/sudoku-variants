@@ -65,7 +65,7 @@ impl<R: Rng> Generator<R> {
             if next_column == 0 { row + 1 } else { row };
         
         for number in shuffle(&mut self.rng, 1..=size) {
-            if sudoku.is_valid_number(column, row, number) {
+            if sudoku.is_valid_number(column, row, number).unwrap() {
                 sudoku.grid_mut().set_cell(column, row, number).unwrap();
 
                 if self.generate_rec(sudoku, next_column, next_row) {
@@ -276,7 +276,7 @@ mod tests {
                 let mut number = None;
 
                 for i in 1..=size {
-                    if sudoku.is_valid_number(0, 0, i) {
+                    if sudoku.is_valid_number(0, 0, i).unwrap() {
                         if number == None {
                             number = Some(i);
                         }
