@@ -100,7 +100,7 @@ impl BacktrackingSolver {
             let mut solution = Solution::Impossible;
 
             for number in 1..=size {
-                if sudoku.is_valid_number(column, row, number) {
+                if sudoku.is_valid_number(column, row, number).unwrap() {
                     sudoku.grid_mut().set_cell(column, row, number).unwrap();
                     let next_solution =
                         BacktrackingSolver::solve_rec(sudoku, next_column,

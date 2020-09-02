@@ -70,3 +70,6 @@ impl From<ParseIntError> for SudokuParseError {
         SudokuParseError::NumberFormatError
     }
 }
+
+/// Syntactic sugar for `Result<V, SudokuParseError>`.
+pub type SudokuParseResult<V> = Result<V, SudokuParseError>; 

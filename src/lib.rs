@@ -75,7 +75,7 @@
 //!
 //! // Some (unfortunatly wrong) user input to the top-left cell
 //! sudoku.grid_mut().set_cell(0, 0, 4);
-//! assert!(!sudoku.is_valid_cell(0, 0));
+//! assert!(!sudoku.is_valid_cell(0, 0).unwrap());
 //! ```
 //!
 //! Similarly, it is also possible to check a singular cell with a potntial new
@@ -192,7 +192,7 @@ pub mod generator;
 pub mod solver;
 
 use constraint::Constraint;
-use error::{SudokuError, SudokuParseError, SudokuResult};
+use error::{SudokuError, SudokuParseError, SudokuParseResult, SudokuResult};
 
 use std::fmt::{self, Display, Error, Formatter};
 
@@ -206,16 +206,28 @@ use std::fmt::{self, Display, Error, Formatter};
 /// result in a grid like this:
 ///
 /// ```text
-/// ╔═╤═╤═╤═╦═╤═╤═╤═╗
-/// ╟─┼─┼─┼─╫─┼─┼─┼─╢
-/// ╠═╪═╪═╪═╬═╪═╪═╪═╣
-/// ╟─┼─┼─┼─╫─┼─┼─┼─╢
-/// ╠═╪═╪═╪═╬═╪═╪═╪═╣
-/// ╟─┼─┼─┼─╫─┼─┼─┼─╢
-/// ╠═╪═╪═╪═╬═╪═╪═╪═╣
-/// ╟─┼─┼─┼─╫─┼─┼─┼─╢
-/// ╚═╧═╧═╧═╩═╧═╧═╧═╝
+/// ╔═══╤═══╤═══╤═══╦═══╤═══╤═══╤═══╗
+/// ║   │   │   │   ║   │   │   │   ║
+/// ╟───┼───┼───┼───╫───┼───┼───┼───╢
+/// ║   │   │   │   ║   │   │   │   ║
+/// ╠═══╪═══╪═══╪═══╬═══╪═══╪═══╪═══╣
+/// ║   │   │   │   ║   │   │   │   ║
+/// ╟───┼───┼───┼───╫───┼───┼───┼───╢
+/// ║   │   │   │   ║   │   │   │   ║
+/// ╠═══╪═══╪═══╪═══╬═══╪═══╪═══╪═══╣
+/// ║   │   │   │   ║   │   │   │   ║
+/// ╟───┼───┼───┼───╫───┼───┼───┼───╢
+/// ║   │   │   │   ║   │   │   │   ║
+/// ╠═══╪═══╪═══╪═══╬═══╪═══╪═══╪═══╣
+/// ║   │   │   │   ║   │   │   │   ║
+/// ╟───┼───┼───┼───╫───┼───┼───┼───╢
+/// ║   │   │   │   ║   │   │   │   ║
+/// ╚═══╧═══╧═══╧═══╩═══╧═══╧═══╧═══╝
 /// ```
+///
+/// `SudokuGrid` implements `Display`, but only grids with a size (that is,
+/// width or height) of less than or equal to 9 can be displayed with digits
+/// 1 to 9. Sudoku of all other sizes will raise an error.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SudokuGrid {
     block_width: usize,
@@ -226,12 +238,7 @@ pub struct SudokuGrid {
 
 fn to_char(cell: Option<usize>) -> char {
     if let Some(n) = cell {
-        if n < 10 {
-            ('0' as u8 + n as u8) as char
-        }
-        else {
-            ('A' as u8 + (n - 10) as u8) as char
-        }
+        ('0' as u8 + n as u8) as char
     }
     else {
         ' '
@@ -293,7 +300,7 @@ impl Display for SudokuGrid {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let size = self.size();
 
-        if size > 35 {
+        if size > 9 {
             return Err(Error::default());
         }
 
@@ -318,6 +325,15 @@ impl Display for SudokuGrid {
 
         f.write_str(bottom_row.as_str())?;
         Ok(())
+    }
+}
+
+fn to_string(cell: &Option<usize>) -> String {
+    if let Some(number) = cell {
+        number.to_string()
+    }
+    else {
+        String::from("")
     }
 }
 
@@ -401,7 +417,7 @@ impl SudokuGrid {
     /// # Errors
     ///
     /// Any specialization of `SudokuParseError` (see that documentation).
-    pub fn parse(code: &str) -> Result<SudokuGrid, SudokuParseError> {
+    pub fn parse(code: &str) -> SudokuParseResult<SudokuGrid> {
         let parts: Vec<&str> = code.split(';').collect();
 
         if parts.len() != 2 {
@@ -439,6 +455,33 @@ impl SudokuGrid {
         else {
             Err(SudokuParseError::InvalidDimensions)
         }
+    }
+
+    /// Converts the grid into a `String` in a way that is consistent with
+    /// [SudokuGrid::parse](#method.parse). That is, a grid that is converted
+    /// to a string and parsed again will not change, as is illustrated below.
+    ///
+    /// ```
+    /// use sudoku_variants::SudokuGrid;
+    ///
+    /// let mut grid = SudokuGrid::new(3, 2).unwrap();
+    ///
+    /// // Just some arbitrary changes to create some content.
+    /// grid.set_cell(1, 1, 4).unwrap();
+    /// grid.set_cell(1, 2, 5).unwrap();
+    ///
+    /// let grid_str = grid.to_parseable_string();
+    /// let grid_parsed = SudokuGrid::parse(grid_str.as_str()).unwrap();
+    /// assert_eq!(grid, grid_parsed);
+    /// ```
+    pub fn to_parseable_string(&self) -> String {
+        let mut s = format!("{}x{};", self.block_width, self.block_height);
+        let cells = self.cells.iter()
+            .map(to_string)
+            .collect::<Vec<String>>()
+            .join(",");
+        s.push_str(cells.as_str());
+        s
     }
 
     /// Gets the width (number of columns) of one sub-block of the grid. To
@@ -698,8 +741,7 @@ impl<C: Constraint + Clone> Sudoku<C> {
     /// If the parsing fails. See
     /// [SudokuGrid::parse](struct.SudokuGrid.html#method.parse) for further
     /// information.
-    pub fn parse(code: &str, constraint: C)
-            -> Result<Sudoku<C>, SudokuParseError> {
+    pub fn parse(code: &str, constraint: C) -> SudokuParseResult<Sudoku<C>> {
         Ok(Sudoku::new_with_grid(SudokuGrid::parse(code)?, constraint))
     }
 
@@ -718,8 +760,6 @@ impl<C: Constraint + Clone> Sudoku<C> {
         self.constraint.check(&self.grid)
     }
 
-    // TODO error reporting for the following two methods.
-
     /// Indicates whether the cell at the given location matches the
     /// constraint. That is, if the specified cell violates the constraint,
     /// `false` is returned, and `true` otherwise.
@@ -730,18 +770,30 @@ impl<C: Constraint + Clone> Sudoku<C> {
     /// the range `[0, size[`.
     /// * `row`: The row (y-coordinate) of the checked cell. Must be in the
     /// range `[0, size[`.
-    pub fn is_valid_cell(&self, column: usize, row: usize) -> bool {
-        self.constraint.check_cell(&self.grid, column, row)
-    }
-
-    pub fn is_valid_number(&self, column: usize, row: usize, number: usize) -> bool {
+    pub fn is_valid_cell(&self, column: usize, row: usize)
+            -> SudokuResult<bool> {
         let size = self.grid.size();
 
-        if number == 0 || number > size {
-            false
+        if column >= size || row >= size {
+            Err(SudokuError::OutOfBounds)
         }
         else {
-            self.constraint.check_number(&self.grid, column, row, number)
+            Ok(self.constraint.check_cell(&self.grid, column, row))
+        }
+    }
+
+    pub fn is_valid_number(&self, column: usize, row: usize, number: usize)
+            -> SudokuResult<bool> {
+        let size = self.grid.size();
+
+        if column >= size || row >= size {
+            Err(SudokuError::OutOfBounds)
+        }
+        else if number == 0 || number > size {
+            Err(SudokuError::InvalidNumber)
+        }
+        else {
+            Ok(self.constraint.check_number(&self.grid, column, row, number))
         }
     }
 }
@@ -816,6 +868,25 @@ mod tests {
             SudokuGrid::parse("2x2;1,2,3,4,1,2,3,4,1,2,3,4,1,2,3"));
         assert_eq!(Err(SudokuParseError::WrongNumberOfCells),
             SudokuGrid::parse("2x2;1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4,1"));
+    }
+
+    #[test]
+    fn to_parseable_string() {
+        let mut grid = SudokuGrid::new(2, 2).unwrap();
+
+        assert_eq!("2x2;,,,,,,,,,,,,,,,", grid.to_parseable_string().as_str());
+
+        grid.set_cell(0, 0, 1).unwrap();
+        grid.set_cell(1, 1, 2).unwrap();
+        grid.set_cell(2, 2, 3).unwrap();
+        grid.set_cell(3, 3, 4).unwrap();
+
+        assert_eq!("2x2;1,,,,,2,,,,,3,,,,,4",
+            grid.to_parseable_string().as_str());
+
+        let grid = SudokuGrid::new(4, 1).unwrap();
+
+        assert_eq!("4x1;,,,,,,,,,,,,,,,", grid.to_parseable_string().as_str());
     }
 
     #[test]
