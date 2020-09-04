@@ -51,7 +51,7 @@
 //! let c1 = CompositeConstraint::new(DefaultConstraint, DiagonalsConstraint);
 //!
 //! // Option 2: DynamicConstraint
-//! let c2 = DynamicConstraint::new(vec![
+//! let c2 = DynamicConstraint::with_children(vec![
 //!     Box::new(DefaultConstraint),
 //!     Box::new(DiagonalsConstraint)
 //! ]);
@@ -672,10 +672,25 @@ impl DynamicConstraint {
     /// Creates a new dynamic constraint from the given child constraints. The
     /// created constraint is defined to be satisfied if all children are
     /// satisfied.
-    pub fn new(constraints: Vec<Box<dyn CloneConstraint>>) -> DynamicConstraint {
+    pub fn with_children(constraints: Vec<Box<dyn CloneConstraint>>)
+            -> DynamicConstraint {
         DynamicConstraint {
             constraints
         }
+    }
+
+    /// Creates a new dynamic constraint without any child constraint. Children
+    /// can be added later using [DynamicConstraint.add](#method.add).
+    pub fn new() -> DynamicConstraint {
+        DynamicConstraint {
+            constraints: Vec::new()
+        }
+    }
+
+    /// Adds a [CloneConstraint](trait.CloneConstraint.html) to this dynamic
+    /// constraint as a child. It is wrapped in a trait object.
+    pub fn add(&mut self, constraint: impl CloneConstraint + 'static) {
+        self.constraints.push(Box::new(constraint))
     }
 }
 
@@ -1015,7 +1030,7 @@ mod tests {
 
     #[test]
     fn dynamic_satisfied() {
-        test_column_row_satisfied(DynamicConstraint::new(vec![
+        test_column_row_satisfied(DynamicConstraint::with_children(vec![
             Box::new(RowConstraint),
             Box::new(ColumnConstraint)
         ]));
@@ -1023,7 +1038,7 @@ mod tests {
 
     #[test]
     fn dynamic_violated() {
-        test_column_row_violated(DynamicConstraint::new(vec![
+        test_column_row_violated(DynamicConstraint::with_children(vec![
             Box::new(RowConstraint),
             Box::new(ColumnConstraint)
         ]));
