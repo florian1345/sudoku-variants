@@ -51,7 +51,7 @@
 //! let c1 = CompositeConstraint::new(DefaultConstraint, DiagonalsConstraint);
 //!
 //! // Option 2: DynamicConstraint
-//! let c2 = DynamicConstraint::new(vec![
+//! let c2 = DynamicConstraint::with_children(vec![
 //!     Box::new(DefaultConstraint),
 //!     Box::new(DiagonalsConstraint)
 //! ]);
