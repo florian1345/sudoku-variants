@@ -355,8 +355,6 @@ fn parse_dimensions(code: &str) -> Result<(usize, usize), SudokuParseError> {
 
 impl SudokuGrid {
 
-    // TODO better error reporting
-
     /// Creates a new, empty Sudoku grid where the blocks have the given
     /// dimensions. The total width and height of the grid will be equal to the
     /// product of `block_width` and `block_height`.
@@ -623,6 +621,16 @@ impl SudokuGrid {
         Ok(())
     }
 
+    fn verify_dimensions(&self, other: &SudokuGrid) -> SudokuResult<()> {
+        if self.block_width != other.block_width ||
+                self.block_height != other.block_height {
+            Err(SudokuError::InvalidDimensions)
+        }
+        else {
+            Ok(())
+        }
+    }
+
     /// Assigns the content of another grid to this one, i.e., changes the
     /// cells in this grid to the state in `other`. The other grid must have
     /// the same dimensions as this one.
@@ -632,11 +640,7 @@ impl SudokuGrid {
     /// If the dimensions are not the same. In that case,
     /// `SudokuError::InvalidDimensions` is returned.
     pub fn assign(&mut self, other: &SudokuGrid) -> SudokuResult<()> {
-        if self.block_width != other.block_width ||
-                self.block_height != other.block_height {
-            return Err(SudokuError::InvalidDimensions);
-        }
-
+        self.verify_dimensions(other)?;
         self.cells.copy_from_slice(&other.cells);
         Ok(())
     }
@@ -657,6 +661,44 @@ impl SudokuGrid {
         }
 
         clues
+    }
+
+    /// Indicates whether this grid configuration is a subset of another one.
+    /// That is, all cells filled in this grid with some number must be filled
+    /// in `other` with the same number. If this condition is met, `true` is
+    /// returned, and `false` otherwise.
+    ///
+    /// # Errors
+    ///
+    /// If the dimensions of this and the `other` grid are not the same. In
+    /// that case, `SudokuError::InvalidDimensions` is returned.
+    pub fn is_subset(&self, other: &SudokuGrid) -> SudokuResult<bool> {
+        self.verify_dimensions(other)?;
+        Ok(self.cells.iter()
+            .zip(other.cells.iter())
+            .all(|(self_cell, other_cell)| {
+                match self_cell {
+                    Some(self_number) =>
+                        match other_cell {
+                            Some(other_number) => self_number == other_number,
+                            None => false
+                        },
+                    None => true
+                }
+            }))
+    }
+
+    /// Indicates whether this grid configuration is a superset of another one.
+    /// That is, all cells filled in the `other `grid with some number must be
+    /// filled in this one with the same number. If this condition is met,
+    /// `true` is returned, and `false` otherwise.
+    ///
+    /// # Errors
+    ///
+    /// If the dimensions of this and the `other` grid are not the same. In
+    /// that case, `SudokuError::InvalidDimensions` is returned.
+    pub fn is_superset(&self, other: &SudokuGrid) -> SudokuResult<bool> {
+        other.is_subset(self)
     }
 }
 
@@ -814,6 +856,25 @@ impl<C: Constraint + Clone> Sudoku<C> {
         }
         else {
             Ok(self.constraint.check_number(&self.grid, column, row, number))
+        }
+    }
+
+    /// Indicates whether the given [SudokuGrid](struct.SudokuGrid.html) is a
+    /// valid solution to this puzzle. That is the case if all digits from this
+    /// Sudoku can be found in the `solution`, and it matches the constraint of
+    /// this Sudoku.
+    ///
+    /// # Errors
+    ///
+    /// If the dimensions of this Sudoku's grid and the `solution` grid are not
+    /// the same. In that case, `SudokuError::InvalidDimensions` is returned.
+    pub fn is_valid_solution(&self, solution: &SudokuGrid)
+            -> SudokuResult<bool> {
+        if !self.grid.is_subset(solution)? {
+            Ok(false)
+        }
+        else {
+            Ok(self.constraint.check(solution))
         }
     }
 }
