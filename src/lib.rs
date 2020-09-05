@@ -663,6 +663,20 @@ impl SudokuGrid {
         clues
     }
 
+    /// Indicates whether this grid is full, i.e. every cell is filled with a
+    /// number. In this case, [SudokuGrid.count_clues](#method.count_clues)
+    /// returns the square of [SudokuGrid.size](#method.size).
+    pub fn is_full(&self) -> bool {
+        !self.cells.iter().any(|c| c == &None)
+    }
+
+    /// Indicates whether this grid is empty, i.e. no cell is filled with a
+    /// number. In this case, [SudokuGrid.count_clues](#method.count_clues)
+    /// returns 0.
+    pub fn is_empty(&self) -> bool {
+        self.cells.iter().all(|c| c == &None)
+    }
+
     /// Indicates whether this grid configuration is a subset of another one.
     /// That is, all cells filled in this grid with some number must be filled
     /// in `other` with the same number. If this condition is met, `true` is
@@ -861,8 +875,8 @@ impl<C: Constraint + Clone> Sudoku<C> {
 
     /// Indicates whether the given [SudokuGrid](struct.SudokuGrid.html) is a
     /// valid solution to this puzzle. That is the case if all digits from this
-    /// Sudoku can be found in the `solution`, and it matches the constraint of
-    /// this Sudoku.
+    /// Sudoku can be found in the `solution`, it matches the constraint of
+    /// this Sudoku, and it is full.
     ///
     /// # Errors
     ///
@@ -870,12 +884,9 @@ impl<C: Constraint + Clone> Sudoku<C> {
     /// the same. In that case, `SudokuError::InvalidDimensions` is returned.
     pub fn is_valid_solution(&self, solution: &SudokuGrid)
             -> SudokuResult<bool> {
-        if !self.grid.is_subset(solution)? {
-            Ok(false)
-        }
-        else {
-            Ok(self.constraint.check(solution))
-        }
+        Ok(self.grid.is_subset(solution)? &&
+            self.constraint.check(solution) &&
+            solution.is_full())
     }
 }
 
@@ -883,6 +894,8 @@ impl<C: Constraint + Clone> Sudoku<C> {
 mod tests {
 
     use super::*;
+
+    use crate::constraint::DefaultConstraint;
 
     #[test]
     fn parse_ok() {
@@ -981,14 +994,127 @@ mod tests {
     }
 
     #[test]
-    fn count_clues() {
-        assert_eq!(0,
-            SudokuGrid::parse("2x2;,,,,,,,,,,,,,,,").unwrap().count_clues());
-        assert_eq!(5, SudokuGrid::parse(
-                "2x2;1,,3,2,4,,,,,,,,,,1,"
-            ).unwrap().count_clues());
-        assert_eq!(16, SudokuGrid::parse(
-                "2x2;2,3,4,1,1,4,2,3,4,1,3,2,3,2,1,4"
-            ).unwrap().count_clues());
+    fn count_clues_and_empty_and_full() {
+        let empty = SudokuGrid::parse("2x2;,,,,,,,,,,,,,,,").unwrap();
+        let partial = SudokuGrid::parse("2x2;1,,3,2,4,,,,,,,,,,1,").unwrap();
+        let full = SudokuGrid::parse("2x2;2,3,4,1,1,4,2,3,4,1,3,2,3,2,1,4")
+            .unwrap();
+
+        assert_eq!(0, empty.count_clues());
+        assert_eq!(5, partial.count_clues());
+        assert_eq!(16, full.count_clues());
+
+        assert!(empty.is_empty());
+        assert!(!partial.is_empty());
+        assert!(!full.is_empty());
+
+        assert!(!empty.is_full());
+        assert!(!partial.is_full());
+        assert!(full.is_full());
+    }
+
+    fn assert_subset_relation(a: &SudokuGrid, b: &SudokuGrid, a_subset_b: bool,
+            b_subset_a: bool) {
+        assert!(a.is_subset(b).unwrap() == a_subset_b);
+        assert!(a.is_superset(b).unwrap() == b_subset_a);
+        assert!(b.is_subset(a).unwrap() == b_subset_a);
+        assert!(b.is_superset(a).unwrap() == a_subset_b);
+    }
+
+    fn assert_true_subset(a: &SudokuGrid, b: &SudokuGrid) {
+        assert_subset_relation(a, b, true, false)
+    }
+
+    fn assert_equal_set(a: &SudokuGrid, b: &SudokuGrid) {
+        assert_subset_relation(a, b, true, true)
+    }
+
+    fn assert_unrelated_set(a: &SudokuGrid, b: &SudokuGrid) {
+        assert_subset_relation(a, b, false, false)
+    }
+
+    #[test]
+    fn empty_is_subset() {
+        let empty = SudokuGrid::new(2, 2).unwrap();
+        let non_empty = SudokuGrid::parse("2x2;1,,,,,,,,,,,,,,,").unwrap();
+        let full = SudokuGrid::parse("2x2;1,2,3,4,3,4,1,2,2,3,1,4,4,1,3,2")
+            .unwrap();
+
+        assert_equal_set(&empty, &empty);
+        assert_true_subset(&empty, &non_empty);
+        assert_true_subset(&empty, &full);
+    }
+
+    #[test]
+    fn equal_grids_subsets() {
+        let g = SudokuGrid::parse("2x2;1,,3,,2,,,,4,,4,3,,,,2").unwrap();
+        assert_equal_set(&g, &g);
+    }
+
+    #[test]
+    fn true_subset() {
+        let g1 = SudokuGrid::parse("2x2;1,,3,,2,,,,4,,4,3,,,,2").unwrap();
+        let g2 = SudokuGrid::parse("2x2;1,2,3,,2,,3,,4,,4,3,,,1,2").unwrap();
+        assert_true_subset(&g1, &g2);
+    }
+
+    #[test]
+    fn unrelated_grids_not_subsets() {
+        // g1 and g2 differ in the third digit (3 in g1, 4 in g2)
+        let g1 = SudokuGrid::parse("2x2;1,,3,,2,,,,4,,4,3,,,,2").unwrap();
+        let g2 = SudokuGrid::parse("2x2;1,2,4,,2,,3,,4,,4,3,,,1,2").unwrap();
+        assert_unrelated_set(&g1, &g2);
+    }
+
+    fn solution_example_sudoku() -> Sudoku<DefaultConstraint> {
+        Sudoku::parse("2x2;\
+            2, , , ,\
+             , ,3, ,\
+             , , ,4,\
+             ,2, , ", DefaultConstraint).unwrap()
+    }
+
+    #[test]
+    fn solution_not_full() {
+        let sudoku = solution_example_sudoku();
+        let solution = SudokuGrid::parse("2x2;\
+            2,3,4,1,\
+            1,4,3, ,\
+            3,1,2,4,\
+            4,2,1,3").unwrap();
+        assert!(!sudoku.is_valid_solution(&solution).unwrap());
+    }
+
+    #[test]
+    fn solution_not_superset() {
+        let sudoku = solution_example_sudoku();
+        let solution = SudokuGrid::parse("2x2;\
+            2,3,4,1,\
+            1,4,3,2,\
+            3,2,1,4,\
+            4,1,2,3").unwrap();
+        assert!(!sudoku.is_valid_solution(&solution).unwrap());
+    }
+
+    #[test]
+    fn solution_violates_constraint() {
+        let sudoku = solution_example_sudoku();
+        let solution = SudokuGrid::parse("2x2;\
+            2,3,4,1,\
+            1,3,3,2,\
+            3,1,2,4,\
+            4,2,1,3").unwrap();
+        assert!(!sudoku.is_valid_solution(&solution).unwrap());
+    }
+
+    #[test]
+    fn solution_correct() {
+        let sudoku = solution_example_sudoku();
+        let solution = SudokuGrid::parse("2x2;\
+            2,3,4,1,\
+            1,4,3,2,\
+            3,1,2,4,\
+            4,2,1,3").unwrap();
+        assert!(sudoku.is_valid_solution(&solution).unwrap());
     }
 }
