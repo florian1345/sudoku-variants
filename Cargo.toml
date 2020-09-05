@@ -6,6 +6,8 @@ edition = "2018"
 description = "A flexible Sudoku engine that supports common variations and custom rules."
 license = "MIT OR Apache-2.0"
 readme = "README.md"
+repository = "https://github.com/florian1345/sudoku-variants"
+documentation = "https://docs.rs/sudoku-variants/"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
