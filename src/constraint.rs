@@ -113,6 +113,7 @@
 //! implemented on every constraint that implements `Clone` by default.
 
 use crate::SudokuGrid;
+use crate::util::USizeSet;
 
 use std::iter::Cloned;
 use std::slice::Iter;
@@ -192,6 +193,25 @@ pub trait Constraint {
 pub struct RowConstraint;
 
 impl Constraint for RowConstraint {
+    fn check(&self, grid: &SudokuGrid) -> bool {
+        let size = grid.size();
+        let mut set = USizeSet::new(1, size).unwrap();
+
+        for row in 0..size {
+            set.clear();
+
+            for column in 0..size {
+                if let Some(number) = grid.get_cell(column, row).unwrap() {
+                    if !set.insert(number).unwrap() {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        true
+    }
+
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
         let size = grid.size();
@@ -212,6 +232,29 @@ impl Constraint for RowConstraint {
 pub struct ColumnConstraint;
 
 impl Constraint for ColumnConstraint {
+
+    // TODO investigate whether code duplication between this and RowConstraint
+    // can be avoided.
+
+    fn check(&self, grid: &SudokuGrid) -> bool {
+        let size = grid.size();
+        let mut set = USizeSet::new(1, size).unwrap();
+
+        for column in 0..size {
+            set.clear();
+
+            for row in 0..size {
+                if let Some(number) = grid.get_cell(column, row).unwrap() {
+                    if !set.insert(number).unwrap() {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        true
+    }
+
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
         let size = grid.size();
@@ -252,6 +295,39 @@ fn check_number_block(grid: &SudokuGrid, column: usize, row: usize,
 pub struct BlockConstraint;
 
 impl Constraint for BlockConstraint {
+    
+    // TODO investigate whether code duplication between this and RowConstraint
+    // and ColumnConstraint can be avoided.
+
+    fn check(&self, grid: &SudokuGrid) -> bool {
+        let block_width = grid.block_width();
+        let block_height = grid.block_height();
+        let size = grid.size();
+        let mut set = USizeSet::new(1, size).unwrap();
+
+        for block_row in 0..block_width {
+            for block_column in 0..block_height {
+                set.clear();
+
+                let start_column = block_column * block_width;
+                let start_row = block_row * block_height;
+
+                for row in start_row..(start_row + block_height) {
+                    for column in start_column..(start_column + block_width) {
+                        if let Some(number) =
+                                grid.get_cell(column, row).unwrap() {
+                            if !set.insert(number).unwrap() {
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        true
+    }
+
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
         check_number_block(grid, column, row, number, |a, b| a || b)
@@ -264,6 +340,10 @@ impl Constraint for BlockConstraint {
 struct BlockConstraintNoLineColumn;
 
 impl Constraint for BlockConstraintNoLineColumn {
+    fn check(&self, grid: &SudokuGrid) -> bool {
+        BlockConstraint.check(grid)
+    }
+
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
         check_number_block(grid, column, row, number, |a, b| a && b)

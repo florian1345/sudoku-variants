@@ -8,6 +8,8 @@
 use crate::{Sudoku, SudokuGrid};
 use crate::constraint::Constraint;
 
+pub mod strategy;
+
 /// An enumeration of the different ways a Sudoku can be solveable. Note that
 /// this may be relative to the solver, since an imperfect solver may be unable
 /// to continue at some point, yielding `Solution::Ambiguous`, where the Sudoku
