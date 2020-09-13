@@ -192,6 +192,7 @@ pub mod constraint;
 pub mod error;
 pub mod generator;
 pub mod solver;
+pub mod util;
 
 use constraint::Constraint;
 use error::{SudokuError, SudokuParseError, SudokuParseResult, SudokuResult};
@@ -339,7 +340,7 @@ fn to_string(cell: &Option<usize>) -> String {
     }
 }
 
-fn index(column: usize, row: usize, size: usize) -> usize {
+pub(crate) fn index(column: usize, row: usize, size: usize) -> usize {
     row * size + column
 }
 
@@ -713,6 +714,10 @@ impl SudokuGrid {
     /// that case, `SudokuError::InvalidDimensions` is returned.
     pub fn is_superset(&self, other: &SudokuGrid) -> SudokuResult<bool> {
         other.is_subset(self)
+    }
+
+    pub fn cells(&self) -> &Vec<Option<usize>> {
+        &self.cells
     }
 }
 
