@@ -1,0 +1,57 @@
+Example Sudoku taken from World Puzzle Federation Sudoku Grand Prix
+
+2014 Round 2 Puzzles 4, 5, 6
+Puzzles: https://gp.worldpuzzle.org/sites/default/files/Sudoku%20Round2.pdf
+Solutions: https://gp.worldpuzzle.org/sites/default/files/Sudoku%20Round2_sol.pdf
+
+2014 Round 3 Puzzles 4, 5
+Puzzles: https://gp.worldpuzzle.org/sites/default/files/Sudoku%20Round3.pdf
+Solutions: https://gp.worldpuzzle.org/sites/default/files/Sudoku%20Round3_sol.pdf
+
+2015 Round 2 Puzzles 7, 9, 10
+Puzzles: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound2.pdf
+Solutions: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound2_SB.pdf
+
+2015 Round 3 Puzzle 9
+Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound3.pdf
+Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound3_SB.pdf
+
+2015 Round 4 Puzzle 7, 9
+Puzzles: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound4.pdf
+Solutions: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound4_SB.pdf
+
+2015 Round 5 Puzzle 7
+Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound5.pdf
+Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound5_SB.pdf
+
+2015 Round 6 Puzzle 9
+Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound6.pdf
+Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound6_SB.pdf
+
+2015 Round 8 Puzzles 7, 8
+Puzzles: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound8.pdf
+Solutions: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound8_SB.pdf
+
+2016 Round 1 Puzzles 8, 9
+Puzzles: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2016/2016_SudokuRound1.pdf
+Solutions: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2016/2016_SudokuRound1_SB.pdf
+
+2016 Round 2 Puzzles 8, 9, 10
+Puzzles: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2016/2016_SudokuRound2.pdf
+Solutions: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2016/2016_SudokuRound2_SB.pdf
+
+2016 Round 3 Puzzle 7
+Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2016/2016_SudokuRound3.pdf
+Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2016/2016_SudokuRound3_SB.pdf
+
+2016 Round 4 Puzzles 6, 7
+Puzzles: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2016/2016_SudokuRound4.pdf
+Solutions: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2016/2016_SudokuRound4_SB.pdf
+
+2016 Round 8 Puzzle 6
+Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2016/2016_SudokuRound8.pdf
+Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2016/2016_SudokuRound8_SB.pdf
+
+2017 Round 1 Puzzle 11
+Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2017/2017_SudokuRound1.pdf
+Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2017/2017_SudokuRound1_SB.pdf
