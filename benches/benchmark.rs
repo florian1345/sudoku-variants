@@ -16,8 +16,6 @@ use sudoku_variants::constraint::{
 };
 use sudoku_variants::solver::{BacktrackingSolver, Solution, Solver};
 use sudoku_variants::solver::strategy::{
-    CompositeStrategy,
-    ConstraintEnforcingStrategy,
     NakedSingleStrategy,
     StrategicBacktrackingSolver
 };
@@ -159,9 +157,7 @@ fn benchmark_backtracking(c: &mut Criterion) {
 
 fn benchmark_simple_strategic_backtracking(c: &mut Criterion) {
     benchmark_solver(c, "simple strategic backtracking",
-        StrategicBacktrackingSolver::new(
-            CompositeStrategy::new(
-                ConstraintEnforcingStrategy, NakedSingleStrategy)))
+        StrategicBacktrackingSolver::new(NakedSingleStrategy))
 }
 
 criterion_group!(all,
