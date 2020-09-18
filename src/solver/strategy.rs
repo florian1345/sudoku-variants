@@ -1,50 +1,71 @@
-use crate::{Sudoku, SudokuGrid};
+use crate::Sudoku;
 use crate::constraint::Constraint;
 use crate::error::{SudokuError, SudokuResult};
 use crate::solver::{Solution, Solver};
 use crate::util::USizeSet;
 
-/// Contains information about which numbers can go into the cells of a
-/// [SudokuGrid](../../struct.SudokuGrid.html). This is analogous to the pencil
+/// Enriches a [Sudoku](../../struct.Sudoku.html) with additional information
+/// about which numbers can go into the cells.. This is analogous to the pencil
 /// markings a human player would make. It is used by
 /// [Strategies](trait.Strategy.html) to communicate the results of logical
 /// reasoning.
 ///
-/// Note that this struct itself does no reasoning, so the data provided by its
-/// method is only as good as the data input by strategies.
+/// This struct already excludes options which violate the Sudoku's constraint,
+/// unless unprocessed changes have been made.
 #[derive(Clone)]
-pub struct GridInfo {
-    block_width: usize,
-    block_height: usize,
-    size: usize,
-    cell_options: Vec<USizeSet>
+pub struct SudokuInfo<C: Constraint + Clone> {
+    sudoku: Sudoku<C>,
+    cell_options: Vec<USizeSet>,
+    up_to_date: bool
 }
 
-impl GridInfo {
+impl<C: Constraint + Clone> SudokuInfo<C> {
 
-    /// Creates a new grid info from a
-    /// [SudokuGrid](../../struct.SudokuGrid.html). The options for all cells
-    /// that are empty in the provided grid are all digits, and the options for
-    /// cells which are filled in the grid are only the digit in that cell.
-    pub fn from_grid(grid: &SudokuGrid) -> GridInfo {
-        let size = grid.size();
+    /// Creates a new Sudok info for a [Sudoku](../../struct.Sudoku.html). The
+    /// options for all cells that are empty in the provided Sudoku are all
+    /// valid digits, and the options for cells which are filled in the Sudoku
+    /// are only the digit in that cell.
+    pub fn from_sudoku(sudoku: Sudoku<C>) -> SudokuInfo<C> {
+        let size = sudoku.grid().size();
+        let mut cell_options = Vec::new();
 
-        GridInfo {
-            block_width: grid.block_width(),
-            block_height: grid.block_height(),
-            size,
-            cell_options: grid.cells().iter()
-                .map(|c| match c {
-                    Some(number) => USizeSet::singleton(1, size, *number).unwrap(),//hashset! { *number },
-                    None => USizeSet::range(1, size).unwrap()
-                })
-                .collect()
+        for row in 0..size {
+            for column in 0..size {
+                let cell = sudoku.grid().get_cell(column, row).unwrap();
+                let options = match cell {
+                    Some(number) =>
+                        USizeSet::singleton(1, size, number).unwrap(),
+                    None => {
+                        let mut options = USizeSet::new(1, size).unwrap();
+
+                        for option in 1..=size {
+                            let is_valid = sudoku
+                                .is_valid_number(column, row, option)
+                                .unwrap();
+
+                            if is_valid {
+                                options.insert(option).unwrap();
+                            }
+                        }
+
+                        options
+                    }
+                };
+
+                cell_options.push(options);
+            }
+        }
+
+        SudokuInfo {
+            sudoku,
+            cell_options,
+            up_to_date: true
         }
     }
 
     fn verified_index(&self, column: usize, row: usize)
             -> SudokuResult<usize> {
-        let size = self.size;
+        let size = self.size();
 
         if column >= size || row >= size {
             Err(SudokuError::OutOfBounds)
@@ -54,9 +75,143 @@ impl GridInfo {
         }
     }
 
+    /// Gets the content of the cell at the specified position.
+    ///
+    /// This is syntactic sugar for `x.sudoku().grid().get_cell(...)`.
+    ///
+    /// # Arguments
+    ///
+    /// * `column`: The column (x-coordinate) of the desired cell. Must be in
+    /// the range `[0, size[`.
+    /// * `row`: The row (y-coordinate) of the desired cell. Must be in the
+    /// range `[0, size[`.
+    ///
+    /// # Errors
+    ///
+    /// If either `column` or `row` are not in the specified range. In that
+    /// case, `SudokuError::OutOfBounds` is returned.
+    pub fn get_cell(&self, column: usize, row: usize)
+            -> SudokuResult<Option<usize>> {
+        self.sudoku.grid().get_cell(column, row)
+    }
+
+    /// Sets the content of the cell at the specified position to the given
+    /// number. If the cell was not empty, the old number will be overwritten.
+    ///
+    /// In contrast with [enter_cell](#method.enter_cell), this method does not
+    /// remove cell options that are invalidated by the new digit. This is done
+    /// for performance reasons to allow batching of multiple changes before
+    /// updating the options. To ensure the cell options are up-to-date, call
+    /// [invalidate](#method.invalidate) after making any changes.
+    ///
+    /// # Arguments
+    ///
+    /// * `column`: The column (x-coordinate) of the assigned cell. Must be in
+    /// the range `[0, size[`.
+    /// * `row`: The row (y-coordinate) of the assigned cell. Must be in the
+    /// range `[0, size[`.
+    /// * `number`: The number to assign to the specified cell. Must be in the
+    /// range `[1, size]`.
+    ///
+    /// # Errors
+    ///
+    /// * `SudokuError::OutOfBounds` If either `column` or `row` are not in the
+    /// specified range.
+    /// * `SudokuError::InvalidNumber` If `number` is not in the specified
+    /// range.
+    pub fn enter_cell_no_update(&mut self, column: usize, row: usize,
+            number: usize) -> SudokuResult<()> {
+        self.sudoku.grid_mut().set_cell(column, row, number)?;
+        self.up_to_date = false;
+        Ok(())
+    }
+
+    /// Sets the content of the cell at the specified position to the given
+    /// number. If the cell was not empty, the old number will be overwritten.
+    ///
+    /// In contrast with [enter_cell_no_update](#method.enter_cell_no_update),
+    /// this method immediately removes all cell options that are invalidated
+    /// by the new digit.
+    ///
+    /// # Arguments
+    ///
+    /// * `column`: The column (x-coordinate) of the assigned cell. Must be in
+    /// the range `[0, size[`.
+    /// * `row`: The row (y-coordinate) of the assigned cell. Must be in the
+    /// range `[0, size[`.
+    /// * `number`: The number to assign to the specified cell. Must be in the
+    /// range `[1, size]`.
+    ///
+    /// # Errors
+    ///
+    /// * `SudokuError::OutOfBounds` If either `column` or `row` are not in the
+    /// specified range.
+    /// * `SudokuError::InvalidNumber` If `number` is not in the specified
+    /// range.
+    pub fn enter_cell(&mut self, column: usize, row: usize, number: usize)
+            -> SudokuResult<()> {
+        self.sudoku.grid_mut().set_cell(column, row, number)?;
+        self.update();
+        Ok(())
+    }
+
+    fn update(&mut self) {
+        let size = self.size();
+        let mut options_to_remove = Vec::new();
+
+        for row in 0..size {
+            for column in 0..size {
+                let content = self.sudoku.grid().get_cell(column, row)
+                    .unwrap();
+
+                if let Some(_) = content {
+                    continue;
+                }
+
+                // TODO find a way to use get_options without triggering the
+                // borrow checker
+
+                let options =
+                    &mut self.cell_options[crate::index(column, row, size)];
+                options_to_remove.clear();
+
+                for option in options.iter() {
+                    let is_valid = self.sudoku
+                        .is_valid_number(column, row, option)
+                        .unwrap();
+
+                    if !is_valid {
+                        options_to_remove.push(option);
+                    }
+                }
+
+                for &option_to_remove in options_to_remove.iter() {
+                    options.remove(option_to_remove).unwrap();
+                }
+            }
+        }
+
+        self.up_to_date = true;
+    }
+
+    /// Removes all cell options that have been invalidated by digits entered
+    /// using [enter_cell_no_update](#method.enter_cell_no_update) which have
+    /// not yet been processed. If there are no pending digits, nothing will be
+    /// done.
+    pub fn invalidate(&mut self) {
+        if !self.up_to_date {
+            self.update();
+        }
+    }
+
     /// Gets a [USizeSet](../../util/struct.USizeSet.html) of the possible
     /// digits that can be entered into the cell at the given position
     /// according to this grid info.
+    ///
+    /// Note that, because options are adapted to new digits lazily, this
+    /// operation may require changes to this instance, namely if digits were
+    /// changed since the last call to `get_options` or `get_options_mut`. This
+    /// means a mutable reference to this instance is required.
     ///
     /// # Arguments
     ///
@@ -80,6 +235,10 @@ impl GridInfo {
     /// digits that can be entered into the cell at the given position
     /// according to this grid info.
     ///
+    /// Note that, because options are adapted to new digits lazily, this
+    /// operation may require changes to this instance, namely if digits were
+    /// changed since the last call to `get_options` or `get_options_mut`.
+    ///
     /// # Arguments
     ///
     /// * `column`: The column (x-coordinate) of the desired cell. Must be in
@@ -101,7 +260,7 @@ impl GridInfo {
     /// information on one axis (horizontally or ertically). Since grids are
     /// always squares, this is guaranteed to be valid for both axes.
     pub fn size(&self) -> usize {
-        self.size
+        self.sudoku.grid().size()
     }
 
     /// Gets a read-only reference to the vector storing the options for every
@@ -109,6 +268,24 @@ impl GridInfo {
     /// left-to-right, top-to-bottom order, where rows are together.
     pub fn cell_options(&self) -> &Vec<USizeSet> {
         &self.cell_options
+    }
+
+    /// Gets the width (number of columns) of one sub-block of the Sudoku. To
+    /// ensure a square grid, this is also the number of blocks that compose
+    /// the grid vertically.
+    ///
+    /// This is syntactic sugar for `x.sudoku().grid().block_width()`.
+    pub fn block_width(&self) -> usize {
+        self.sudoku.grid().block_width()
+    }
+
+    /// Gets the height (number of rows) of one sub-block of the Sudoku. To
+    /// ensure a square grid, this is also the number of blocks that compose
+    /// the grid horizontally.
+    ///
+    /// This is syntactic sugar for `x.sudoku().grid().block_height()`.
+    pub fn block_height(&self) -> usize {
+        self.sudoku.grid().block_height()
     }
 
     /// Assigns the content of another grid info to this one, that is, after
@@ -119,9 +296,11 @@ impl GridInfo {
     ///
     /// If `other` has different dimensions to this instance. In that case,
     /// `SudokuError::InvalidDimensions` is returned.
-    pub fn assign(&mut self, other: &GridInfo) -> SudokuResult<()> {
-        if self.block_width != other.block_width ||
-                self.block_height != other.block_height {
+    pub fn assign(&mut self, other: &SudokuInfo<C>) -> SudokuResult<()> {
+        self.sudoku.grid_mut().assign(other.sudoku.grid())?;
+
+        if self.block_width() != other.block_width() ||
+                self.block_height() != other.block_height() {
             return Err(SudokuError::InvalidDimensions);
         }
 
@@ -131,6 +310,12 @@ impl GridInfo {
 
         Ok(())
     }
+
+    /// Gets the [Sudoku](../../struct.Sudoku.html) for which this Sudoku info
+    /// stores additional information.
+    pub fn sudoku(&self) -> &Sudoku<C> {
+        &self.sudoku
+    }
 }
 
 /// A trait for strategies, which use logical reasoning to restrict the
@@ -138,23 +323,14 @@ impl GridInfo {
 pub trait Strategy {
 
     /// Applies this strategy to the given Sudoku. The strategy may rely on and
-    /// modify the information in the given `grid_info`. It should not remove
-    /// digits from the Sudoku or add options to any cell in the grid info.
+    /// modify the information in the given `sudoku_info`. This instance is
+    /// given to other strategies that participate in the solution and/or
+    /// future iterations of the same strategy. It can thus be used to
+    /// communicate insights.
     ///
     /// This method shall return `true` if and only if something has changed,
-    /// that is, a digit has been entered in the Sudoku or an option has been
-    /// removed from the grid info.
-    ///
-    /// # Arguments
-    ///
-    /// * `sudoku`: The [Sudoku](../../struct.Sudoku.html) over which this
-    /// strategy shall reason. It is mutable so this method can enter digits.
-    /// * `grid_info`: A [GridInfo](struct.GridInfo.html) instance that may
-    /// store additional insights into the given Sudoku which have been gained
-    /// in previous iterations and/or from different strategies. It is mutable
-    /// so this method can remove options it can exclude.
-    fn apply(&self, sudoku: &mut Sudoku<impl Constraint + Clone>,
-        grid_info: &mut GridInfo) -> bool;
+    /// that is, a digit has been entered or an option has been removed.
+    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>) -> bool;
 }
 
 /// A partial [Solver](../trait.Solver.html) which uses a
@@ -178,19 +354,18 @@ impl<S: Strategy> StrategicSolver<S> {
 
 impl<S: Strategy> Solver for StrategicSolver<S> {
     fn solve(&self, sudoku: &Sudoku<impl Constraint + Clone>) -> Solution {
-        let mut sudoku = sudoku.clone();
-        let mut grid_info = GridInfo::from_grid(sudoku.grid());
+        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku.clone());
 
-        while !sudoku.grid().is_full() &&
-            self.strategy.apply(&mut sudoku, &mut grid_info) { }
+        while !sudoku_info.sudoku().grid().is_full() &&
+            self.strategy.apply(&mut sudoku_info) { }
 
-        if !sudoku.is_valid() {
+        if !sudoku_info.sudoku().is_valid() {
             Solution::Impossible
         }
-        else if sudoku.grid().is_full() {
-            Solution::Unique(sudoku.grid().clone())
+        else if sudoku_info.sudoku().grid().is_full() {
+            Solution::Unique(sudoku_info.sudoku().grid().clone())
         }
-        else if grid_info.cell_options().iter().any(|c| c.is_empty()) {
+        else if sudoku_info.cell_options().iter().any(|c| c.is_empty()) {
             Solution::Impossible
         }
         else {
@@ -215,17 +390,17 @@ pub struct StrategicBacktrackingSolver<S: Strategy> {
 
 /// Finds the cell for which there are the fewest options and returns its
 /// coordinates in the form `(column, row)`.
-fn find_min_options(sudoku: &Sudoku<impl Constraint + Clone>,
-        grid_info: &GridInfo) -> (usize, usize) {
-    let size = grid_info.size();
+fn find_min_options<C: Constraint + Clone>(sudoku_info: &mut SudokuInfo<C>)
+        -> (usize, usize) {
+    let size = sudoku_info.size();
     let mut min_options_column = 0usize;
     let mut min_options_row = 0usize;
     let mut min_options = size + 1;
 
     for row in 0..size {
         for column in 0..size {
-            let cell = sudoku.grid().get_cell(column, row).unwrap();
-            let options = grid_info.get_options(column, row).unwrap();
+            let cell = sudoku_info.get_cell(column, row).unwrap();
+            let options = sudoku_info.get_options(column, row).unwrap();
 
             if cell == None && options.len() < min_options {
                 min_options_column = column;
@@ -260,45 +435,35 @@ impl<S: Strategy> StrategicBacktrackingSolver<S> {
         StrategicBacktrackingSolver { strategy }
     }
 
-    fn solve_rec(&self, sudoku: &mut Sudoku<impl Constraint + Clone>,
-            grid_info: &mut GridInfo) -> Solution {
+    fn solve_rec(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>) -> Solution {
         while {
-            if let Some(solution) = to_solution(sudoku) {
+            if let Some(solution) = to_solution(sudoku_info.sudoku()) {
                 return solution;
             }
 
-            self.strategy.apply(sudoku, grid_info)
+            self.strategy.apply(sudoku_info)
         } { }
 
         let (min_options_column, min_options_row) =
-            find_min_options(sudoku, grid_info);
-        let options = grid_info
+            find_min_options(sudoku_info);
+        let options = sudoku_info
             .get_options(min_options_column, min_options_row)
             .unwrap()
             .iter();
         let mut solution = Solution::Impossible;
-        //let mut sub_sudoku = sudoku.clone();
-        //let mut sub_grid_info = grid_info.clone();
 
         for number in options {
-            let mut sudoku = sudoku.clone();
-            sudoku.grid_mut()
-                .set_cell(min_options_column, min_options_row, number)
+            let mut sudoku_info = sudoku_info.clone();
+            sudoku_info
+                .enter_cell_no_update(min_options_column, min_options_row, number)
                 .unwrap();
-            //sub_sudoku.grid_mut().assign(sudoku.grid());
-            //sub_sudoku.grid_mut()
-            //    .set_cell(min_options_column, min_options_row, number)
-            //    .unwrap();
-
-            let mut grid_info = grid_info.clone();
-            //sub_grid_info.assign(grid_info);
-            let options_info = grid_info
+            let options_info = sudoku_info
                 .get_options_mut(min_options_column, min_options_row)
                 .unwrap();
             options_info.clear();
             options_info.insert(number).unwrap();
 
-            let next_solution = self.solve_rec(&mut sudoku, &mut grid_info);
+            let next_solution = self.solve_rec(&mut sudoku_info);
             solution = solution.union(next_solution);
 
             if solution == Solution::Ambiguous {
@@ -312,47 +477,7 @@ impl<S: Strategy> StrategicBacktrackingSolver<S> {
 
 impl<S: Strategy> Solver for StrategicBacktrackingSolver<S> {
     fn solve(&self, sudoku: &Sudoku<impl Constraint + Clone>) -> Solution {
-        self.solve_rec(&mut sudoku.clone(),
-            &mut GridInfo::from_grid(sudoku.grid()))
-    }
-}
-
-/// A [Strategy](trait.Strategy.html) which simply removes all options that
-/// violate the constraint from each cell.
-#[derive(Clone)]
-pub struct ConstraintEnforcingStrategy;
-
-impl Strategy for ConstraintEnforcingStrategy {
-
-    fn apply(&self, sudoku: &mut Sudoku<impl Constraint + Clone>,
-            grid_info: &mut GridInfo) -> bool {
-        let size = grid_info.size();
-        let mut changed = false;
-        let mut options_to_remove = Vec::new();
-
-        for row in 0..size {
-            for column in 0..size {
-                if let Some(_) = sudoku.grid().get_cell(column, row).unwrap() {
-                    continue;
-                }
-
-                let options = grid_info.get_options_mut(column, row).unwrap();
-                options_to_remove.clear();
-
-                for option in options.iter() {
-                    if !sudoku.is_valid_number(column, row, option).unwrap() {
-                        options_to_remove.push(option);
-                        changed = true;
-                    }
-                }
-
-                for &option_to_remove in options_to_remove.iter() {
-                    options.remove(option_to_remove).unwrap();
-                }
-            }
-        }
-
-        changed
+        self.solve_rec(&mut SudokuInfo::from_sudoku(sudoku.clone()))
     }
 }
 
@@ -363,23 +488,25 @@ pub struct NakedSingleStrategy;
 
 impl Strategy for NakedSingleStrategy {
 
-    fn apply(&self, sudoku: &mut Sudoku<impl Constraint + Clone>,
-            grid_info: &mut GridInfo) -> bool {
-        let size = grid_info.size();
+    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
+            -> bool {
+        let size = sudoku_info.size();
         let mut changed = false;
 
         for row in 0..size {
             for column in 0..size {
-                let grid = sudoku.grid_mut();
-                let options = grid_info.get_options(column, row).unwrap();
+                let options = sudoku_info.get_options(column, row).unwrap();
 
-                if grid.get_cell(column, row).unwrap() == None && options.len() == 1 {
+                if sudoku_info.get_cell(column, row).unwrap() == None &&
+                        options.len() == 1 {
                     let option = options.iter().next().unwrap();
-                    grid.set_cell(column, row, option).unwrap();
+                    sudoku_info.enter_cell_no_update(column, row, option).unwrap();
                     changed = true;
                 }
             }
         }
+
+        sudoku_info.invalidate();
 
         changed
     }
@@ -411,8 +538,9 @@ impl<S1: Strategy, S2: Strategy> CompositeStrategy<S1, S2> {
 }
 
 impl<S1: Strategy, S2: Strategy> Strategy for CompositeStrategy<S1, S2> {
-    fn apply(&self, sudoku: &mut Sudoku<impl Constraint + Clone>, grid_info: &mut GridInfo) -> bool {
-        self.s1.apply(sudoku, grid_info) | self.s2.apply(sudoku, grid_info)
+    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
+            -> bool {
+        self.s1.apply(sudoku_info) | self.s2.apply(sudoku_info)
     }
 }
 
@@ -427,12 +555,11 @@ mod tests {
 
     use super::*;
 
-    use crate::Sudoku;
+    use crate::{Sudoku, SudokuGrid};
     use crate::constraint::DefaultConstraint;
 
     fn simple_strategy() -> impl Strategy {
-        CompositeStrategy::new(ConstraintEnforcingStrategy,
-            NakedSingleStrategy)
+        NakedSingleStrategy
     }
 
     fn simple_strategy_solver() -> StrategicSolver<impl Strategy> {
