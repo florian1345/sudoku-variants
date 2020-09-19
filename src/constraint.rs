@@ -60,11 +60,12 @@
 //! # Custom constraints
 //!
 //! When implementing a constraint, it is usually sufficient to implement
-//! [Constraint.check_number](trait.Constraint.html#tymethod.check_number). All
-//! other methods are default-implemented based on it. However, the performance
-//! of [Constraint.check](trait.Constraint.html#method.check) could be improved
-//! by a specialized implementation, since by default it calls `check_number`
-//! for every cell.
+//! [Constraint.check_number](trait.Constraint.html#tymethod.check_number) and
+//! [Constraint.get_groups](trait.Constraint.html#tymethod.get_rgroups). All
+//! other methods are default-implemented. However, the performance of
+//! [Constraint.check](trait.Constraint.html#method.check) could be improved by
+//! a specialized implementation, since by default it calls `check_number` for
+//! every cell.
 //!
 //! As an example of an implementation of a custom constraint, we will look at
 //! the source code of a subset of the `DiagonalsConstraint`, which we call
@@ -73,7 +74,7 @@
 //!
 //! ```
 //! use sudoku_variants::SudokuGrid;
-//! use sudoku_variants::constraint::Constraint;
+//! use sudoku_variants::constraint::{Constraint, Group};
 //!
 //! #[derive(Clone)]
 //! struct MainDiagonalConstraint;
@@ -99,6 +100,18 @@
 //!
 //!         true
 //!     }
+//!
+//!     fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
+//!         // There is one group in this case: the main diagonal.
+//!         let size = grid.size();
+//!         let mut group = Group::new();
+//!
+//!         for i in 0..size {
+//!             group.push((i, i));
+//!         }
+//!
+//!         vec![ group ]
+//!     }
 //! }
 //! ```
 //!
@@ -117,6 +130,10 @@ use crate::util::USizeSet;
 
 use std::iter::Cloned;
 use std::slice::Iter;
+
+/// A group of cells, represented by a vector of their coordinates in the form
+/// `(column, row)`.
+pub type Group = Vec<(usize, usize)>;
 
 /// A constraint defines some property on a Sudoku grid. These are essentially
 /// the rules of the Sudoku. In standard Sudoku these are "No duplicates in a
@@ -186,6 +203,8 @@ pub trait Constraint {
     /// improve the performance of solvers.
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
         number: usize) -> bool;
+
+    fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group>;
 }
 
 /// A `Constraint` that there are no duplicates in each row.
@@ -224,6 +243,23 @@ impl Constraint for RowConstraint {
         }
 
         true
+    }
+
+    fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
+        let size = grid.size();
+        let mut groups = Vec::new();
+
+        for row in 0..size {
+            let mut group = Group::new();
+
+            for column in 0..size {
+                group.push((column, row));
+            }
+
+            groups.push(group);
+        }
+
+        groups
     }
 }
 
@@ -268,6 +304,23 @@ impl Constraint for ColumnConstraint {
 
         true
     }
+
+    fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
+        let size = grid.size();
+        let mut groups = Vec::new();
+
+        for column in 0..size {
+            let mut group = Group::new();
+
+            for row in 0..size {
+                group.push((column, row));
+            }
+
+            groups.push(group);
+        }
+
+        groups
+    }
 }
 
 fn check_number_block(grid: &SudokuGrid, column: usize, row: usize,
@@ -288,6 +341,34 @@ fn check_number_block(grid: &SudokuGrid, column: usize, row: usize,
     }
 
     true
+}
+
+fn get_groups_block(grid: &SudokuGrid) -> Vec<Group> {
+    let block_width = grid.block_width();
+    let block_height = grid.block_height();
+    let mut groups = Vec::new();
+
+    for block_row in 0..block_width {
+        let base_row = block_row * block_height;
+
+        for block_column in 0..block_height {
+            let base_column = block_column * block_width;
+            let mut group = Group::new();
+
+            for sub_row in 0..block_height {
+                let row = base_row + sub_row;
+
+                for sub_column in 0..block_width {
+                    let column = base_column + sub_column;
+                    group.push((column, row));
+                }
+            }
+
+            groups.push(group);
+        }
+    }
+
+    groups
 }
 
 /// A `Constraint` that there are no duplicates in each block.
@@ -332,6 +413,10 @@ impl Constraint for BlockConstraint {
             number: usize) -> bool {
         check_number_block(grid, column, row, number, |a, b| a || b)
     }
+
+    fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
+        get_groups_block(grid)
+    }
 }
 
 /// Similar to `BlockConstraint`, but does not check numbers in the same row
@@ -347,6 +432,10 @@ impl Constraint for BlockConstraintNoLineColumn {
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
         check_number_block(grid, column, row, number, |a, b| a && b)
+    }
+
+    fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
+        get_groups_block(grid)
     }
 }
 
@@ -374,6 +463,13 @@ impl Constraint for DefaultConstraint {
         RowConstraint.check_number(grid, column, row, number) &&
             ColumnConstraint.check_number(grid, column, row, number) &&
             BlockConstraintNoLineColumn.check_number(grid, column, row, number)
+    }
+
+    fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
+        let mut groups = RowConstraint.get_groups(grid);
+        groups.append(&mut ColumnConstraint.get_groups(grid));
+        groups.append(&mut BlockConstraintNoLineColumn.get_groups(grid));
+        groups
     }
 }
 
@@ -410,6 +506,22 @@ impl Constraint for DiagonalsConstraint {
         }
 
         true
+    }
+
+    fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
+        let size = grid.size();
+        let mut main_diagonal = Group::new();
+        let mut anti_diagonal = Group::new();
+
+        for i in 0..size {
+            main_diagonal.push((i, i));
+            anti_diagonal.push((i, size - i - 1));
+        }
+
+        vec![
+            main_diagonal,
+            anti_diagonal
+        ]
     }
 }
 
@@ -520,6 +632,10 @@ impl<C: RelativeCellConstraint> Constraint for C {
         }
         
         true
+    }
+
+    fn get_groups(&self, _: &SudokuGrid) -> Vec<Group> {
+        Vec::new()
     }
 }
 
@@ -721,6 +837,12 @@ where
         self.c1.check_number(grid, column, row, number) &&
             self.c2.check_number(grid, column, row, number)
     }
+
+    fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
+        let mut groups = self.c1.get_groups(grid);
+        groups.append(&mut self.c2.get_groups(grid));
+        groups
+    }
 }
 
 /// A trait for cloneable `Constraints` which is used in the
@@ -787,6 +909,13 @@ impl Constraint for DynamicConstraint {
             number: usize) -> bool {
         self.constraints.iter().all(
             |c| c.check_number(grid, column, row, number))
+    }
+
+    fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
+        self.constraints.iter()
+            .map(|c| c.get_groups(grid))
+            .flat_map(|g| g.into_iter())
+            .collect()
     }
 }
 
