@@ -1,4 +1,10 @@
-use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
+use criterion::{
+    criterion_group,
+    criterion_main,
+    BenchmarkGroup,
+    Criterion,
+    SamplingMode
+};
 use criterion::measurement::WallTime;
 
 use toml::Value;
@@ -16,7 +22,9 @@ use sudoku_variants::constraint::{
 };
 use sudoku_variants::solver::{BacktrackingSolver, Solution, Solver};
 use sudoku_variants::solver::strategy::{
+    CompositeStrategy,
     NakedSingleStrategy,
+    OnlyCellStrategy,
     StrategicBacktrackingSolver
 };
 
@@ -27,7 +35,7 @@ use std::time::Duration;
 // often less clues, leading to higher runtimes. We may therefore want to run
 // those benchmarks with less examples.
 
-const MEASUREMENT_TIME_SECS: u64 = 120;
+const MEASUREMENT_TIME_SECS: u64 = 30;
 const DEFAULT_SAMPLE_SIZE: usize = 100;
 const CONSTRAINED_SAMPLE_SIZE: usize = 100;
 
@@ -117,6 +125,7 @@ fn benchmark_solver_constraint<C: Constraint + Clone, S: Solver>(
         constraint: C, solver: &S) {
     group.measurement_time(Duration::from_secs(MEASUREMENT_TIME_SECS));
     group.sample_size(sample_size);
+    group.sampling_mode(SamplingMode::Flat);
 
     let mut file = String::from(BENCHDATA_DIR);
     file.push_str(id);
@@ -160,9 +169,16 @@ fn benchmark_simple_strategic_backtracking(c: &mut Criterion) {
         StrategicBacktrackingSolver::new(NakedSingleStrategy))
 }
 
+fn benchmark_complex_strategic_backtracking(c: &mut Criterion) {
+    benchmark_solver(c, "complex strategic backtracking",
+        StrategicBacktrackingSolver::new(CompositeStrategy::new(
+            NakedSingleStrategy, OnlyCellStrategy)))
+}
+
 criterion_group!(all,
     benchmark_backtracking,
-    benchmark_simple_strategic_backtracking
+    benchmark_simple_strategic_backtracking,
+    benchmark_complex_strategic_backtracking
 );
 
 criterion_main!(all);
