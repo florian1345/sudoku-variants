@@ -512,6 +512,100 @@ impl Strategy for NakedSingleStrategy {
     }
 }
 
+#[derive(Clone)]
+enum Location {
+    None,
+    One(usize, usize),
+    Multiple
+}
+
+impl std::fmt::Display for Location {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Location::None => f.write_str("None"),
+            Location::One(a, b) => f.write_str(format!("One({}, {})", a, b).as_str()),
+            Location::Multiple => f.write_str("Multiple")
+        }
+    }
+}
+
+impl Location {
+    fn union(&self, column: usize, row: usize) -> Location {
+        match self {
+            Location::None => Location::One(column, row),
+            Location::One(_, _) => Location::Multiple,
+            Location::Multiple => Location::Multiple
+        }
+    }
+}
+
+/// A [Strategy](trait.Strategy.html) which detects situations in which a digit
+/// can only go in one cell of a group.
+///
+/// As a visualization, the cell marked with X in the following example is the
+/// only one in its block that can be a 2 (using classic Sudoku rules).
+///
+/// ```text
+/// ╔═══╤═══╦═══╤═══╗
+/// ║   │   ║   │ 2 ║
+/// ╟───┼───╫───┼───╢
+/// ║ X │ 1 ║   │   ║
+/// ╠═══╪═══╬═══╪═══╣
+/// ║   │   ║   │   ║
+/// ╟───┼───╫───┼───╢
+/// ║   │   ║   │   ║
+/// ╚═══╧═══╩═══╧═══╝
+/// ```
+#[derive(Clone)]
+pub struct OnlyCellStrategy;
+
+impl Strategy for OnlyCellStrategy {
+
+    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>) -> bool {
+        let size = sudoku_info.size();
+        let grid = sudoku_info.sudoku().grid();
+        let groups = sudoku_info.sudoku().constraint().get_groups(grid);
+        let mut changed = false;
+
+        for group in groups {
+            if group.len() < size {
+                // For smaller groups, there is no guarantee that all digits
+                // are present.
+                continue;
+            }
+
+            let mut locations = vec![Location::None; size + 1];
+
+            for (column, row) in group {
+                if let Some(_) = sudoku_info.get_cell(column, row).unwrap() {
+                    continue;
+                }
+
+                let options = sudoku_info.get_options(column, row).unwrap();
+
+                for option in options.iter() {
+                    let location = &locations[option];
+                    locations[option] = location.union(column, row);
+                }
+            }
+
+            for (number, location) in locations.into_iter().enumerate() {
+                if let Location::One(column, row) = location {
+                    sudoku_info.enter_cell_no_update(column, row, number)
+                        .unwrap();
+                    changed = true;
+                }
+            }
+
+            // We must invalidate here since otherwise the strategy may try to
+            // fill multiple cells in a group with the same digit.
+            sudoku_info.invalidate();
+        }
+
+        changed
+    }
+}
+
 /// A [Strategy](trait.Strategy.html) which uses two strategies by first
 /// applying one and then the other on the output of the first one. If any
 /// child changed the state, this strategy is defined to have changed the state
@@ -558,60 +652,12 @@ mod tests {
     use crate::{Sudoku, SudokuGrid};
     use crate::constraint::DefaultConstraint;
 
-    fn simple_strategy() -> impl Strategy {
-        NakedSingleStrategy
+    fn naked_single_strategy_solver() -> StrategicSolver<impl Strategy> {
+        StrategicSolver::new(NakedSingleStrategy)
     }
 
-    fn simple_strategy_solver() -> StrategicSolver<impl Strategy> {
-        StrategicSolver::new(simple_strategy())
-    }
-
-    fn solve_simply<C: Constraint + Clone>(sudoku: &Sudoku<C>) -> Solution {
-        simple_strategy_solver().solve(&sudoku)
-    }
-
-    #[test]
-    fn simple_strategy_solves_uniquely() {
-        let sudoku = Sudoku::parse("3x3;\
-             , ,1, , ,7,3,6, ,\
-            7,2, , ,8, ,5, ,9,\
-             ,8, , ,3,1, , , ,\
-             , , ,6,7, , ,3,5,\
-            9, ,5,8, , , ,7, ,\
-            2,6, , ,1, , , ,4,\
-            3, , ,1,5, , ,4,6,\
-             ,7,4, , ,3, ,5,2,\
-            5,1, ,7, ,4,8, , ", DefaultConstraint).unwrap();
-        let solution = solve_simply(&sudoku);
-        let expected = Solution::Unique(SudokuGrid::parse("3x3;\
-            4,5,1,2,9,7,3,6,8,\
-            7,2,3,4,8,6,5,1,9,\
-            6,8,9,5,3,1,4,2,7,\
-            1,4,8,6,7,9,2,3,5,\
-            9,3,5,8,4,2,6,7,1,\
-            2,6,7,3,1,5,9,8,4,\
-            3,9,2,1,5,8,7,4,6,\
-            8,7,4,9,6,3,1,5,2,\
-            5,1,6,7,2,4,8,9,3").unwrap());
-
-        assert_eq!(expected, solution);
-    }
-
-    #[test]
-    fn simple_strategy_detects_impossibility() {
-        let sudoku = Sudoku::parse("3x3;\
-             , , , , , ,1, , ,\
-             , , , , , ,2, , ,\
-             , , , , , ,3, , ,\
-             , , , , , , , , ,\
-            1,2,3,4,5,6,7, , ,\
-             , , , , , ,4, , ,\
-            3,1,2,6,7,9, ,8, ,\
-             , , , , , ,6, , ,\
-             , , , , , ,9, , ", DefaultConstraint).unwrap();
-        let solution = solve_simply(&sudoku);
-
-        assert_eq!(Solution::Impossible, solution);
+    fn only_cell_strategy_solver() -> StrategicSolver<impl Strategy> {
+        StrategicSolver::new(OnlyCellStrategy)
     }
 
     fn difficult_sudoku() -> Sudoku<DefaultConstraint> {
@@ -634,17 +680,88 @@ mod tests {
     }
 
     #[test]
-    fn simple_strategy_unable_to_solve() {
+    fn naked_single_strategy_solves_uniquely() {
+        let sudoku = Sudoku::parse("3x3;\
+             , ,1, , ,7,3,6, ,\
+            7,2, , ,8, ,5, ,9,\
+             ,8, , ,3,1, , , ,\
+             , , ,6,7, , ,3,5,\
+            9, ,5,8, , , ,7, ,\
+            2,6, , ,1, , , ,4,\
+            3, , ,1,5, , ,4,6,\
+             ,7,4, , ,3, ,5,2,\
+            5,1, ,7, ,4,8, , ", DefaultConstraint).unwrap();
+        let solution = naked_single_strategy_solver().solve(&sudoku);
+        let expected = Solution::Unique(SudokuGrid::parse("3x3;\
+            4,5,1,2,9,7,3,6,8,\
+            7,2,3,4,8,6,5,1,9,\
+            6,8,9,5,3,1,4,2,7,\
+            1,4,8,6,7,9,2,3,5,\
+            9,3,5,8,4,2,6,7,1,\
+            2,6,7,3,1,5,9,8,4,\
+            3,9,2,1,5,8,7,4,6,\
+            8,7,4,9,6,3,1,5,2,\
+            5,1,6,7,2,4,8,9,3").unwrap());
+
+        assert_eq!(expected, solution);
+    }
+
+    #[test]
+    fn naked_single_strategy_detects_impossibility() {
+        let sudoku = Sudoku::parse("3x3;\
+             , , , , , ,1, , ,\
+             , , , , , ,2, , ,\
+             , , , , , ,3, , ,\
+             , , , , , , , , ,\
+            1,2,3,4,5,6,7, , ,\
+             , , , , , ,4, , ,\
+            3,1,2,6,7,9, ,8, ,\
+             , , , , , ,6, , ,\
+             , , , , , ,9, , ", DefaultConstraint).unwrap();
+        let solution = naked_single_strategy_solver().solve(&sudoku);
+
+        assert_eq!(Solution::Impossible, solution);
+    }
+
+    #[test]
+    fn naked_single_strategy_unable_to_solve() {
         let sudoku = difficult_sudoku();
-        let solution = solve_simply(&sudoku);
+        let solution = naked_single_strategy_solver().solve(&sudoku);
 
         assert_eq!(Solution::Ambiguous, solution);
     }
 
     #[test]
+    fn only_cell_strategy_solves_uniquely() {
+        let sudoku = Sudoku::parse("3x3;\
+             ,1, ,2, , ,7, ,9,\
+             , ,6, ,8, ,3, , ,\
+            8,2, , ,1,3, ,4,6,\
+            4, ,5, ,7, ,6, ,1,\
+            2,7,1,6, , , ,5, ,\
+             ,9, , ,3, , , , ,\
+             ,4, , ,5,8, ,6,7,\
+            5, ,3,9,4, , ,2,8,\
+            9,8, , , ,6,4,3, ", DefaultConstraint).unwrap();
+        let solution = only_cell_strategy_solver().solve(&sudoku);
+        let expected = Solution::Unique(SudokuGrid::parse("3x3;\
+            3,1,4,2,6,5,7,8,9,\
+            7,5,6,4,8,9,3,1,2,\
+            8,2,9,7,1,3,5,4,6,\
+            4,3,5,8,7,2,6,9,1,\
+            2,7,1,6,9,4,8,5,3,\
+            6,9,8,5,3,1,2,7,4,\
+            1,4,2,3,5,8,9,6,7,\
+            5,6,3,9,4,7,1,2,8,\
+            9,8,7,1,2,6,4,3,5").unwrap());
+
+        assert_eq!(expected, solution);
+    }
+
+    #[test]
     fn strategic_backtracking_more_powerful() {
         let sudoku = difficult_sudoku();
-        let solver = StrategicBacktrackingSolver::new(simple_strategy());
+        let solver = StrategicBacktrackingSolver::new(NakedSingleStrategy);
         let solution = solver.solve(&sudoku);
         let expected = Solution::Unique(SudokuGrid::parse("3x3;\
             6,5,4,3,1,8,2,7,9,\
