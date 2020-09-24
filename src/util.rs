@@ -1,10 +1,20 @@
 use std::mem;
+use std::ops::{
+    BitAnd,
+    BitAndAssign,
+    BitOr,
+    BitOrAssign,
+    BitXor,
+    BitXorAssign,
+    Sub,
+    SubAssign
+};
 use std::slice::Iter;
 
 /// A set of `usize` that is implemented as a bit vector. Each `usize` that is
 /// in the range of possible elements is represented by one bit in a vector of
 /// numbers. This generally has better performance than a `HashSet`.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct USizeSet {
     min: usize,
     max: usize,
@@ -20,6 +30,10 @@ pub enum USizeSetError {
     /// Indicates that the bounds provided in the constructor are invalid, that
     /// is, the minimum is greater than the maximum.
     InvalidBounds,
+
+    /// Indicates that an operation was performed on two or more `USizeSet`s
+    /// with different bounds.
+    DifferentBounds,
 
     /// Indicates that a number that was queried to be inserted or removed is
     /// out of the bounds of the `USizeSet` in question.
@@ -331,6 +345,313 @@ impl USizeSet {
     pub fn len(&self) -> usize {
         self.len
     }
+
+    fn count(&self) -> usize {
+        self.content.iter()
+            .map(|c| c.count_ones() as usize)
+            .sum()
+    }
+
+    fn op_assign(&mut self, other: &USizeSet, op: impl Fn(u64, u64) -> u64)
+            -> USizeSetResult<()> {
+        if self.min() != other.min() || self.max() != other.max() {
+            Err(USizeSetError::DifferentBounds)
+        }
+        else {
+            let contents = self.content.iter_mut().zip(other.content.iter());
+
+            for (self_u64, &other_u64) in contents {
+                *self_u64 = op(*self_u64, other_u64);
+            }
+
+            self.len = self.count();
+            Ok(())
+        }
+    }
+
+    fn op(&self, other: &USizeSet,
+            op_assign: impl Fn(&mut USizeSet, &USizeSet) -> USizeSetResult<()>)
+            -> USizeSetResult<USizeSet> {
+        let mut clone = self.clone();
+        op_assign(&mut clone, other)?;
+        Ok(clone)
+    }
+
+    /// Computes the set union between this and the given set and stores the
+    /// result in this set. The bounds of this set and `other` must be equal.
+    ///
+    /// `USizeSet` implements
+    /// [BitOrAssign](https://doc.rust-lang.org/std/ops/trait.BitOrAssign.html)
+    /// as syntactic sugar for this operation. Note that that implementation
+    /// panics instead of returning potential errors.
+    ///
+    /// # Errors
+    ///
+    /// If either the minimum or maximum of this set and `other` are different.
+    /// In that case, `USizeError::DifferentBounds` is returned.
+    pub fn union_assign(&mut self, other: &USizeSet) -> USizeSetResult<()> {
+        self.op_assign(other, u64::bitor)
+    }
+
+    /// Computes the set union between this and the given set and stores the
+    /// result in a new set which is returned. The bounds of this set and
+    /// `other` must be equal.
+    ///
+    /// `USizeSet` implements
+    /// [BitOr](https://doc.rust-lang.org/std/ops/trait.BitOr.html) as
+    /// syntactic sugar for this operation. Note that that implementation
+    /// panics instead of returning potential errors.
+    ///
+    /// # Errors
+    ///
+    /// If the minimum or maximum of this set and `other` are different. In
+    /// that case, `USizeError::DifferentBounds` is returned.
+    pub fn union(&self, other: &USizeSet) -> USizeSetResult<USizeSet> {
+        self.op(other, USizeSet::union_assign)
+    }
+
+    /// Computes the set intersection between this and the given set and stores
+    /// the result in this set. The bounds of this set and `other` must be
+    /// equal.
+    ///
+    /// `USizeSet` implements
+    /// [BitAndAssign](https://doc.rust-lang.org/std/ops/trait.BitAndAssign.html)
+    /// as syntactic sugar for this operation. Note that that implementation
+    /// panics instead of returning potential errors.
+    ///
+    /// # Errors
+    ///
+    /// If the minimum or maximum of this set and `other` are different. In
+    /// that case, `USizeError::DifferentBounds` is returned.
+    pub fn intersect_assign(&mut self, other: &USizeSet)
+            -> USizeSetResult<()> {
+        self.op_assign(other, u64::bitand)
+    }
+
+    /// Computes the set intersection between this and the given set and stores
+    /// the result in a new set which is returned. The bounds of this set and
+    /// `other` must be equal.
+    ///
+    /// `USizeSet` implements
+    /// [BitAnd](https://doc.rust-lang.org/std/ops/trait.BitAnd.html) as
+    /// syntactic sugar for this operation. Note that that implementation
+    /// panics instead of returning potential errors.
+    ///
+    /// # Errors
+    ///
+    /// If the minimum or maximum of this set and `other` are different. In
+    /// that case, `USizeError::DifferentBounds` is returned.
+    pub fn intersect(&self, other: &USizeSet) -> USizeSetResult<USizeSet> {
+        self.op(other, USizeSet::intersect_assign)
+    }
+
+    /// Computes the set difference between this and the given set and stores
+    /// the result in this set. The bounds of this set and `other` must be
+    /// equal. `other` acts as the right-hand-side, meaning its elements are
+    /// removed from the result.
+    ///
+    /// `USizeSet` implements
+    /// [SubAssign](https://doc.rust-lang.org/std/ops/trait.SubAssign.html) as
+    /// syntactic sugar for this operation. Note that that implementation
+    /// panics instead of returning potential errors.
+    ///
+    /// # Errors
+    ///
+    /// If the minimum or maximum of this set and `other` are different. In
+    /// that case, `USizeError::DifferentBounds` is returned.
+    pub fn difference_assign(&mut self, other: &USizeSet)
+            -> USizeSetResult<()> {
+        self.op_assign(other, |a, b| a & !b)
+    }
+
+    /// Computes the set difference between this and the given set and stores
+    /// the result in a new set which is returned. The bounds of this set and
+    /// `other` must be equal.
+    ///
+    /// `USizeSet` implements
+    /// [Sub](https://doc.rust-lang.org/std/ops/trait.Sub.html) as syntactic
+    /// sugar for this operation. Note that that implementation panics instead
+    /// of returning potential errors.
+    ///
+    /// # Errors
+    ///
+    /// If the minimum or maximum of this set and `other` are different. In
+    /// that case, `USizeError::DifferentBounds` is returned.
+    pub fn difference(&self, other: &USizeSet) -> USizeSetResult<USizeSet> {
+        self.op(other, USizeSet::difference_assign)
+    }
+
+    /// Computes the symmetric set difference between this and the given set
+    /// and stores the result in this set. The bounds of this set and `other`
+    /// must be equal.
+    ///
+    /// `USizeSet` implements
+    /// [BitXorAssign](https://doc.rust-lang.org/std/ops/trait.BitXorAssign.html)
+    /// as syntactic sugar for this operation. Note that that implementation
+    /// panics instead of returning potential errors.
+    ///
+    /// # Errors
+    ///
+    /// If the minimum or maximum of this set and `other` are different. In
+    /// that case, `USizeError::DifferentBounds` is returned.
+    pub fn symmetric_difference_assign(&mut self, other: &USizeSet)
+            -> USizeSetResult<()> {
+        self.op_assign(other, u64::bitxor)
+    }
+
+    /// Computes the symmetric set difference between this and the given set
+    /// and stores the result in a new set which is returned. The bounds of
+    /// this set and `other` must be equal.
+    ///
+    /// `USizeSet` implements
+    /// [BitXor](https://doc.rust-lang.org/std/ops/trait.BitXor.html) as
+    /// syntactic sugar for this operation. Note that that implementation
+    /// panics instead of returning potential errors.
+    ///
+    /// # Errors
+    ///
+    /// If the minimum or maximum of this set and `other` are different. In
+    /// that case, `USizeError::DifferentBounds` is returned.
+    pub fn symmetric_difference(&self, other: &USizeSet)
+            -> USizeSetResult<USizeSet> {
+        self.op(other, USizeSet::symmetric_difference_assign)
+    }
+}
+
+#[macro_export]
+macro_rules! set {
+    ($set:expr; $e:expr) => {
+        ($set).insert($e).unwrap()
+    };
+
+    ($set:expr; $e:expr, $($es:expr),+) => {
+        set!($set; $e);
+        set!($set; $($es),+)
+    };
+
+    ($min:expr, $max:expr; $($es:expr),+) => {
+        {
+            let mut set = USizeSet::new($min, $max).unwrap();
+            set!(set; $($es),+);
+            set
+        }
+    };
+}
+
+impl BitAnd<&USizeSet> for USizeSet {
+    type Output = USizeSet;
+
+    fn bitand(mut self, rhs: &USizeSet) -> USizeSet {
+        self.intersect_assign(rhs).unwrap();
+        self
+    }
+}
+
+impl BitOr<&USizeSet> for USizeSet {
+    type Output = USizeSet;
+
+    fn bitor(mut self, rhs: &USizeSet) -> USizeSet {
+        self.union_assign(rhs).unwrap();
+        self
+    }
+}
+
+impl Sub<&USizeSet> for USizeSet {
+    type Output = USizeSet;
+
+    fn sub(mut self, rhs: &USizeSet) -> USizeSet {
+        self.difference_assign(rhs).unwrap();
+        self
+    }
+}
+
+impl BitXor<&USizeSet> for USizeSet {
+    type Output = USizeSet;
+
+    fn bitxor(mut self, rhs: &USizeSet) -> USizeSet {
+        self.symmetric_difference_assign(rhs).unwrap();
+        self
+    }
+}
+
+impl BitAnd for &USizeSet {
+    type Output = USizeSet;
+
+    fn bitand(self, rhs: &USizeSet) -> USizeSet {
+        self.intersect(rhs).unwrap()
+    }
+}
+
+impl BitOr for &USizeSet {
+    type Output = USizeSet;
+
+    fn bitor(self, rhs: &USizeSet) -> USizeSet {
+        self.union(rhs).unwrap()
+    }
+}
+
+impl Sub for &USizeSet {
+    type Output = USizeSet;
+
+    fn sub(self, rhs: &USizeSet) -> USizeSet {
+        self.difference(rhs).unwrap()
+    }
+}
+
+impl BitXor for &USizeSet {
+    type Output = USizeSet;
+
+    fn bitxor(self, rhs: &USizeSet) -> USizeSet {
+        self.symmetric_difference(rhs).unwrap()
+    }
+}
+
+impl BitAndAssign<&USizeSet> for USizeSet {
+    fn bitand_assign(&mut self, rhs: &USizeSet) {
+        self.intersect_assign(rhs).unwrap()
+    }
+}
+
+impl BitOrAssign<&USizeSet> for USizeSet {
+    fn bitor_assign(&mut self, rhs: &USizeSet) {
+        self.union_assign(rhs).unwrap()
+    }
+}
+
+impl SubAssign<&USizeSet> for USizeSet {
+    fn sub_assign(&mut self, rhs: &USizeSet) {
+        self.difference_assign(rhs).unwrap()
+    }
+}
+
+impl BitXorAssign<&USizeSet> for USizeSet {
+    fn bitxor_assign(&mut self, rhs: &USizeSet) {
+        self.symmetric_difference_assign(rhs).unwrap()
+    }
+}
+
+impl BitAndAssign<&USizeSet> for &mut USizeSet {
+    fn bitand_assign(&mut self, rhs: &USizeSet) {
+        self.intersect_assign(rhs).unwrap()
+    }
+}
+
+impl BitOrAssign<&USizeSet> for &mut USizeSet {
+    fn bitor_assign(&mut self, rhs: &USizeSet) {
+        self.union_assign(rhs).unwrap()
+    }
+}
+
+impl SubAssign<&USizeSet> for &mut USizeSet {
+    fn sub_assign(&mut self, rhs: &USizeSet) {
+        self.difference_assign(rhs).unwrap()
+    }
+}
+
+impl BitXorAssign<&USizeSet> for &mut USizeSet {
+    fn bitxor_assign(&mut self, rhs: &USizeSet) {
+        self.symmetric_difference_assign(rhs).unwrap()
+    }
 }
 
 #[cfg(test)]
@@ -445,5 +766,41 @@ mod tests {
 
         assert!(!set.contains(3));
         assert_eq!(7, set.len());
+    }
+
+    fn op_test_lhs() -> USizeSet {
+        set!(1, 4; 2, 4)
+    }
+
+    fn op_test_rhs() -> USizeSet {
+        set!(1, 4; 3, 4)
+    }
+
+    #[test]
+    fn union() {
+        let result = op_test_lhs() | &op_test_rhs();
+        let expected = set!(1, 4; 2, 3, 4);
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn intersection() {
+        let result = op_test_lhs() & &op_test_rhs();
+        let expected = set!(1, 4; 4);
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn difference() {
+        let result = op_test_lhs() - &op_test_rhs();
+        let expected = set!(1, 4; 2);
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn symmetric_difference() {
+        let result = op_test_lhs() ^ &op_test_rhs();
+        let expected = set!(1, 4; 2, 3);
+        assert_eq!(expected, result);
     }
 }

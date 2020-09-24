@@ -4,6 +4,8 @@ use crate::error::{SudokuError, SudokuResult};
 use crate::solver::{Solution, Solver};
 use crate::util::USizeSet;
 
+use std::collections::HashSet;
+
 /// Enriches a [Sudoku](../../struct.Sudoku.html) with additional information
 /// about which numbers can go into the cells.. This is analogous to the pencil
 /// markings a human player would make. It is used by
@@ -561,7 +563,8 @@ pub struct OnlyCellStrategy;
 
 impl Strategy for OnlyCellStrategy {
 
-    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>) -> bool {
+    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
+            -> bool {
         let size = sudoku_info.size();
         let grid = sudoku_info.sudoku().grid();
         let groups = sudoku_info.sudoku().constraint().get_groups(grid);
@@ -600,6 +603,161 @@ impl Strategy for OnlyCellStrategy {
             // We must invalidate here since otherwise the strategy may try to
             // fill multiple cells in a group with the same digit.
             sudoku_info.invalidate();
+        }
+
+        changed
+    }
+}
+
+/// A [Strategy](trait.Strategy.html) which searches groups for tuples, that
+/// is, 2 or more cells that in total have as many options as there are cells
+/// in the tuple. It then excludes all of these options from all cells in the
+/// group which are not a part of the tuple.
+///
+/// As an example, consider the following configuration (with standard Sudoku
+/// rules):
+///
+/// ```text
+/// ╔═══╤═══╤═══╦═══╤═══╤═══╦═══╤═══╤═══╗
+/// ║ A │ A │ A ║ 4 │ 5 │ 6 ║ 7 │ 8 │ 9 ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║ B │ B │ B ║ 1 │ 2 │ 3 ║ 4 │ 5 │ 6 ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║   │   │ X ║   │   │   ║   │   │   ║
+/// ╠═══╪═══╪═══╬═══╪═══╪═══╬═══╪═══╪═══╣
+/// ║   │   │ 4 ║   │   │   ║   │   │   ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║   │   │ 5 ║   │   │   ║   │   │   ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║   │   │   ║   │   │   ║   │   │   ║
+/// ╠═══╪═══╪═══╬═══╪═══╪═══╬═══╪═══╪═══╣
+/// ║   │   │   ║   │   │   ║   │   │   ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║   │   │   ║   │   │   ║   │   │   ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║   │   │   ║   │   │   ║   │   │   ║
+/// ╚═══╧═══╧═══╩═══╧═══╧═══╩═══╧═══╧═══╝
+/// ```
+///
+/// Because the first row already contains the digits 4-9, the cells marked
+/// with A must contain the digits 1-3, meaning they are a triple (3-tuple).
+/// Similarly, the cells marked with B must contain the digits 7-9. This
+/// excludes the options 1-3 and 7-9 from the cell marked with X. The 4 and 5
+/// in the third column then fix it to 6.
+///
+/// When creating a tuple strategy using [TupleStrategy::new](#method.new), the
+/// maximum size of tuples that are considered can be defined.
+#[derive(Clone)]
+pub struct TupleStrategy<F: Fn(usize) -> usize> {
+    max_size_computer: F
+}
+
+impl<F: Fn(usize) -> usize> TupleStrategy<F> {
+
+    /// Creates a new tuple strategy that considers tuples up to the size
+    /// defined by `max_size_computer`. This closure receives the size of the
+    /// grid and outputs the maximum size of tuples that this strategy shall
+    /// consider.
+    pub fn new(max_size_computer: F) -> TupleStrategy<F> {
+        TupleStrategy {
+            max_size_computer
+        }
+    }
+}
+
+#[derive(Clone)]
+struct Tuple {
+    cells: HashSet<(usize, usize)>,
+    options: USizeSet
+}
+
+impl Tuple {
+    fn new(size: usize) -> Tuple {
+        Tuple {
+            cells: HashSet::new(),
+            options: USizeSet::new(1, size).unwrap()
+        }
+    }
+
+    fn add_cell(&mut self, options: &USizeSet, column: usize, row: usize) {
+        self.cells.insert((column, row));
+        self.options |= options;
+    }
+
+    fn is_full(&self) -> bool {
+        // Note: |options| < |cells| can only be the case if the Sudoku is
+        // impossible.
+        // TODO add a shortcut for returning impossible if a tuple with too
+        // many cells is detected
+
+        let options_len = self.options.len();
+        options_len >= 2 && options_len <= self.cells.len()
+    }
+}
+
+fn find_tuples_rec(sudoku_info: &SudokuInfo<impl Constraint + Clone>,
+        group_rest: &[(usize, usize)], max_size: usize, mut curr_tuple: Tuple,
+        accumulator: &mut Vec<Tuple>) {
+    if curr_tuple.options.len() > max_size {
+        return;
+    }
+
+    if curr_tuple.is_full() {
+        accumulator.push(curr_tuple);
+        return;
+    }
+
+    if let Some((next_column, next_row)) = group_rest.iter().cloned().next() {
+        let next_options =
+            sudoku_info.get_options(next_column, next_row).unwrap();
+        let next_rest = &group_rest[1..];
+
+        if next_options.len() > 1 {
+            find_tuples_rec(sudoku_info, next_rest, max_size,
+                curr_tuple.clone(), accumulator);
+            curr_tuple.add_cell(next_options, next_column, next_row);
+            find_tuples_rec(sudoku_info, next_rest, max_size, curr_tuple,
+                accumulator);
+        }
+        else {
+            find_tuples_rec(sudoku_info, next_rest, max_size, curr_tuple,
+                accumulator);
+        }
+    }
+}
+
+fn find_tuples(sudoku_info: &SudokuInfo<impl Constraint + Clone>,
+        group: &Vec<(usize, usize)>, max_size: usize) -> Vec<Tuple> {
+    let mut result = Vec::new();
+    find_tuples_rec(&sudoku_info, group, max_size,
+        Tuple::new(sudoku_info.size()), &mut result);
+    result
+}
+
+impl<F: Fn(usize) -> usize> Strategy for TupleStrategy<F> {
+
+    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
+            -> bool {
+        let mut changed = false;
+        let grid = sudoku_info.sudoku().grid();
+        let groups = sudoku_info.sudoku().constraint().get_groups(grid);
+        let max_size = (self.max_size_computer)(sudoku_info.size());
+
+        for group in groups {
+            let tuples = find_tuples(&sudoku_info, &group, max_size);
+            
+            for tuple in tuples {
+                for (column, row) in group.iter().cloned() {
+                    if sudoku_info.get_cell(column, row).unwrap() == None &&
+                            !tuple.cells.contains(&(column, row)) {
+                        let mut cell_options =
+                            sudoku_info.get_options_mut(column, row).unwrap();
+                        let before_len = cell_options.len();
+                        cell_options -= &tuple.options;
+                        changed |= before_len != cell_options.len();
+                    }
+                }
+            }
         }
 
         changed
@@ -756,6 +914,76 @@ mod tests {
             9,8,7,1,2,6,4,3,5").unwrap());
 
         assert_eq!(expected, solution);
+    }
+
+    fn test_strategy_stronger_and_sound<C, W, S>(sudoku: Sudoku<C>,
+        weak_strategy: W, strong_strategy: S, test_column: usize,
+        test_row: usize, test_number: usize)
+    where
+        C: Constraint + Clone,
+        W: Strategy,
+        S: Strategy
+    {
+        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku);
+
+        while weak_strategy.apply(&mut sudoku_info) { }
+        assert_eq!(None, sudoku_info.get_cell(test_column, test_row).unwrap());
+
+        while strong_strategy.apply(&mut sudoku_info) { }
+        assert_eq!(Some(test_number),
+            sudoku_info.get_cell(test_column, test_row).unwrap());
+
+        assert!(sudoku_info.sudoku().is_valid());
+    }
+
+    #[test]
+    fn tuple_strategy_helps_naked_single_strategy() {
+        // In this Sudoku, the cell in column 2, row 2 must be a 6, but that
+        // can only be recognized once the options 1, 2, 7, and 8 have been
+        // excluded by the tuple strategy.
+        // Only tuples of size 2 need to be considered.
+
+        let sudoku = Sudoku::parse("3x3;\
+             , ,3,4,5,6,7,8,9,\
+             , ,9,1,2,3,4,5,6,\
+             , , , , , , , , ,\
+             , ,4, , , , , , ,\
+             , ,5, , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ", DefaultConstraint).unwrap();
+        let weak_strategy = NakedSingleStrategy;
+        let strong_strategy = CompositeStrategy::new(
+            TupleStrategy::new(|_| 2), NakedSingleStrategy);
+        
+        test_strategy_stronger_and_sound(sudoku, weak_strategy,
+            strong_strategy, 2, 2, 6);
+    }
+
+    #[test]
+    fn tuple_strategy_does_not_consider_too_large_tuples() {
+        // This Sudoku is equivalent to the one above, but missing the 3 and 9
+        // in column 2. This means that tuples of size 3 are necessary to
+        // deduce the 6.
+
+        let sudoku = Sudoku::parse("3x3;\
+             , , ,4,5,6,7,8,9,\
+             , , ,1,2,3,4,5,6,\
+             , , , , , , , , ,\
+             , ,4, , , , , , ,\
+             , ,5, , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ", DefaultConstraint).unwrap();
+        let weak_strategy = CompositeStrategy::new(
+            TupleStrategy::new(|_| 2), NakedSingleStrategy);
+        let strong_strategy = CompositeStrategy::new(
+            TupleStrategy::new(|_| 3), NakedSingleStrategy);
+        
+        test_strategy_stronger_and_sound(sudoku, weak_strategy,
+            strong_strategy, 2, 2, 6);
     }
 
     #[test]
