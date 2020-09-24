@@ -25,7 +25,8 @@ use sudoku_variants::solver::strategy::{
     CompositeStrategy,
     NakedSingleStrategy,
     OnlyCellStrategy,
-    StrategicBacktrackingSolver
+    StrategicBacktrackingSolver,
+    TupleStrategy
 };
 
 use std::fs;
@@ -34,6 +35,17 @@ use std::time::Duration;
 // Note: When solving/reducing Sudoku with additional constraints, there are
 // often less clues, leading to higher runtimes. We may therefore want to run
 // those benchmarks with less examples.
+
+// Explanation of benchmark classes:
+//
+// backtracking: A simple BacktrackingSolver which does not use strategies.
+// simple strategic backtracking: A StrategicBacktrackingSolver which uses only
+//                                the NakedSingleStrategy.
+// fastest strategic backtracking: A StrategicBacktrackingSolver which uses the
+//                                 combination of strategies that yields the
+//                                 best benchmark results.
+// complex strategic backtracking: A StrategicBacktrackingSolver which uses all
+//                                 available strategies with sensible settings.
 
 const MEASUREMENT_TIME_SECS: u64 = 30;
 const DEFAULT_SAMPLE_SIZE: usize = 100;
@@ -169,15 +181,24 @@ fn benchmark_simple_strategic_backtracking(c: &mut Criterion) {
         StrategicBacktrackingSolver::new(NakedSingleStrategy))
 }
 
+fn benchmark_fastest_strategic_backtracking(c: &mut Criterion) {
+    benchmark_solver(c, "fastest strategic backtracking",
+        StrategicBacktrackingSolver::new(CompositeStrategy::new(
+            NakedSingleStrategy, OnlyCellStrategy)))
+}
+
 fn benchmark_complex_strategic_backtracking(c: &mut Criterion) {
     benchmark_solver(c, "complex strategic backtracking",
         StrategicBacktrackingSolver::new(CompositeStrategy::new(
-            NakedSingleStrategy, OnlyCellStrategy)))
+            CompositeStrategy::new(
+                NakedSingleStrategy, OnlyCellStrategy),
+            TupleStrategy::new(|size| size - 2))))
 }
 
 criterion_group!(all,
     benchmark_backtracking,
     benchmark_simple_strategic_backtracking,
+    benchmark_fastest_strategic_backtracking,
     benchmark_complex_strategic_backtracking
 );
 
