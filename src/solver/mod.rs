@@ -1,9 +1,7 @@
 //! This module contains the logic for solving Sudoku.
 //!
-//! Most importantly, this module contains the definition of the
-//! [Solver](trait.Solver.html) trait and the
-//! [BacktrackingSolver](struct.BacktrackingSolver.html) as a generally usable
-//! implementation.
+//! Most importantly, this module contains the definition of the [Solver] trait
+//! and the [BacktrackingSolver] as a generally usable implementation.
 
 use crate::{Sudoku, SudokuGrid};
 use crate::constraint::Constraint;
@@ -73,13 +71,12 @@ pub trait Solver {
     fn solve(&self, sudoku: &Sudoku<impl Constraint + Clone>) -> Solution;
 }
 
-/// A perfect [Solver](trait.Solver.html) which solves Sudoku by recursively
-/// testing all valid numbers for each cell. This means two things:
+/// A perfect [Solver] which solves Sudoku by recursively testing all valid
+/// numbers for each cell. This means two things:
 ///
 /// * Its worst-case runtime is exponential, i.e. it may be very slow if the
 /// Sudoku has many missing digits.
-/// * It can provide the correct [Solution](enum.Solution.html) for any Sudoku
-/// with any constraint.
+/// * It can provide the correct [Solution] for any Sudoku with any constraint.
 pub struct BacktrackingSolver;
 
 impl BacktrackingSolver {

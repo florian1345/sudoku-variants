@@ -1,33 +1,27 @@
 //! This module defines constraints which can be applied tu Sudoku grids, thus
 //! specifying the rules of the puzzle.
 //!
-//! Besides the definition of the [Constraint](trait.Constraint.html) trait,
-//! this crate contains some predefined constraint for default Sudoku rules and
-//! some variants. We will cover them first and afterwards show how to
-//! implement a custom constraint.
+//! Besides the definition of the [Constraint] trait, this crate contains some
+//! predefined constraint for default Sudoku rules and some variants. We will
+//! cover them first and afterwards show how to implement a custom constraint.
 //!
 //! # Default Sudoku rules
 //!
-//! To get the default Sudoku rules,
-//! [DefaultConstraint](struct.DefaultConstraint.html) can be used.
-//! Conceptually, it is a conjunction of
-//! [RowConstraint](struct.RowConstraint.html),
-//! [ColumnConstraint](struct.ColumnConstraint.html), and
-//! [BlockConstraint](struct.BlockConstraint.html).
+//! To get the default Sudoku rules, [DefaultConstraint] can be used.
+//! Conceptually, it is a conjunction of [RowConstraint], [ColumnConstraint],
+//! and [BlockConstraint].
 //!
 //! # Variants
 //!
 //! Besides the default rules, `sudoku-variants` also offers some pre-defined
-//! variantions. As an example, we will use the
-//! [DiagonalsConstraint](struct.DiagonalsConstraint.html), which requires that
-//! the two diagonals, top-left to bottom-right and top-right to bottom-left,
-//! do not contain duplicate digits, just like each row, column, and block in
-//! standard Sudoku.
+//! variantions. As an example, we will use the [DiagonalsConstraint], which
+//! requires that the two diagonals, top-left to bottom-right and top-right to
+//! bottom-left, do not contain duplicate digits, just like each row, column,
+//! and block in standard Sudoku.
 //!
 //! Normally, one wants to apply a `DiagonalsConstraint` *and* a
 //! `DefaultConstraint`. This can be done in two ways: using a
-//! [CompositeConstraint](struct.CompositeConstraint.html) and using a
-//! [DynamicConstraint](struct.DynamicConstraint.html). The first is
+//! [CompositeConstraint] and using a [DynamicConstraint]. The first is
 //! type-checked over two parameter types, which both need to be constraints.
 //! It is provided one instance of each type, and is defined to be fulfilled
 //! if both instances are fulfilled. In contrast, the `DynamicConstraint` uses
@@ -60,12 +54,10 @@
 //! # Custom constraints
 //!
 //! When implementing a constraint, it is usually sufficient to implement
-//! [Constraint.check_number](trait.Constraint.html#tymethod.check_number) and
-//! [Constraint.get_groups](trait.Constraint.html#tymethod.get_rgroups). All
-//! other methods are default-implemented. However, the performance of
-//! [Constraint.check](trait.Constraint.html#method.check) could be improved by
-//! a specialized implementation, since by default it calls `check_number` for
-//! every cell.
+//! [Constraint::check_number] and [Constraint::get_groups]. All other methods
+//! are default-implemented. However, the performance of [Constraint::check]
+//! could be improved by a specialized implementation, since by default it
+//! calls `check_number` for every cell.
 //!
 //! As an example of an implementation of a custom constraint, we will look at
 //! the source code of a subset of the `DiagonalsConstraint`, which we call
@@ -120,10 +112,10 @@
 //! cloneable aswell. Note that `Clone` is not required by the `Constraint`
 //! trait, since that would make it impossible to create `Constraint`-trait
 //! objects, which are used in the `DynamicConstraint`. Instead,
-//! [CloneConstraint](trait.CloneConstraint.html), which clones a trait object,
-//! is required for elements of a `DynamicConstraint`. However, if you derive
-//! `Clone`, you do not need to worry about `CloneConstraint`, since it is
-//! implemented on every constraint that implements `Clone` by default.
+//! [CloneConstraint], which clones a trait object, is required for elements of
+//! a `DynamicConstraint`. However, if you derive `Clone`, you do not need to
+//! worry about `CloneConstraint`, since it is implemented for every constraint
+//! that implements `Clone` by default.
 
 use crate::SudokuGrid;
 use crate::util::USizeSet;
@@ -155,10 +147,10 @@ pub type Group = Vec<(usize, usize)>;
 /// `CloneConstraint`.
 pub trait Constraint {
 
-    /// Checks whether the given [SudokuGrid](../struct.SudokuGrid.html)
-    /// matches this constraint, that is, every cell matches this constraint.
-    /// By default, this runs `check_cell` on every cell of the grid, which may
-    /// be inefficient, so custom implementations may be advantageous.
+    /// Checks whether the given [SudokuGrid] matches this constraint, that is,
+    /// every cell matches this constraint.  By default, this runs `check_cell`
+    /// on every cell of the grid, which may be inefficient, so custom
+    /// implementations may be advantageous.
     fn check(&self, grid: &SudokuGrid) -> bool {
         let size = grid.size();
 
@@ -173,11 +165,10 @@ pub trait Constraint {
         true
     }
 
-    /// Checks whether the cell at the given position in the
-    /// [SudokuGrid](../struct.SudokuGrid.html) fulfills the constraint. This
-    /// is the same as calling `check_number` with the same coordinates and
-    /// the number which is actually filled in that cell. If the cell is empty,
-    /// this function always returns `true`.
+    /// Checks whether the cell at the given position in the [SudokuGrid]
+    /// fulfills the constraint. This is the same as calling `check_number`
+    /// with the same coordinates and the number which is actually filled in
+    /// that cell. If the cell is empty, this function always returns `true`.
     fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
             -> bool {
         if let Some(number) = grid.get_cell(column, row).unwrap() {
@@ -192,7 +183,8 @@ pub trait Constraint {
     /// `column` and `row` into the `grid` without violating this constraint.
     /// This function does *not* have to check whether `number` is actually a
     /// valid number for this grid (i.e. in the interval [1, size]). If you
-    /// require this guarantee, use `Sudoku.is_valid_number` instead.
+    /// require this guarantee, use
+    /// [Sudoku::is_valid_number](crate::Sudoku::is_valid_number) instead.
     ///
     /// For some constraints, it may be difficult to decide whether a number
     /// could actually fill the cell without making the puzzle impossible. It
@@ -204,10 +196,23 @@ pub trait Constraint {
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
         number: usize) -> bool;
 
+    /// Gets a vector of all groups that are defined by this constraint. A
+    /// group is a set of cells which may not contain repeated numbers. As an
+    /// example, the [BlockConstraint] defines each block as a group. Some
+    /// constraints, such as the [KingsMoveConstraint], do not have groups. In
+    /// this particular case, a cell removed by a kings-move to the top-left
+    /// may be the same as one to the bottom-right, so the cells removed by a
+    /// kings-move from any particular cell cannot form a group. Such
+    /// constraints should return an empty vector here.
+    ///
+    /// Arguing about groups is necessary for some strategies. While it is
+    /// possible to solve Sudoku with constraints which do not implement this
+    /// method, getting this implementation will enable some strategies as well
+    /// as improve the performance of strategic backtracking.
     fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group>;
 }
 
-/// A `Constraint` that there are no duplicates in each row.
+/// A [Constraint] that there are no duplicates in each row.
 #[derive(Clone)]
 pub struct RowConstraint;
 
@@ -263,7 +268,7 @@ impl Constraint for RowConstraint {
     }
 }
 
-/// A `Constraint` that there are no duplicates in each column.
+/// A [Constraint] that there are no duplicates in each column.
 #[derive(Clone)]
 pub struct ColumnConstraint;
 
@@ -371,7 +376,7 @@ fn get_groups_block(grid: &SudokuGrid) -> Vec<Group> {
     groups
 }
 
-/// A `Constraint` that there are no duplicates in each block.
+/// A [Constraint] that there are no duplicates in each block.
 #[derive(Clone)]
 pub struct BlockConstraint;
 
@@ -419,8 +424,8 @@ impl Constraint for BlockConstraint {
     }
 }
 
-/// Similar to `BlockConstraint`, but does not check numbers in the same row
-/// and column to save some time. For use in the DefaultConstraint.
+/// Similar to [BlockConstraint], but does not check numbers in the same row
+/// and column to save some time. For use in the [DefaultConstraint].
 #[derive(Clone)]
 struct BlockConstraintNoLineColumn;
 
@@ -439,8 +444,8 @@ impl Constraint for BlockConstraintNoLineColumn {
     }
 }
 
-/// The default Sudoku `Constraint` which is a logical conjunction of
-/// `RowConstraint`, `ColumnConstraint`, and `BlockConstraint`.
+/// The default Sudoku [Constraint] which is a logical conjunction of
+/// [RowConstraint], [ColumnConstraint], and [BlockConstraint].
 #[derive(Clone)]
 pub struct DefaultConstraint;
 
@@ -473,7 +478,7 @@ impl Constraint for DefaultConstraint {
     }
 }
 
-/// A `Constraint` which checks that there are no duplicates in each of the two
+/// A [Constraint] which checks that there are no duplicates in each of the two
 /// diagonals ( ╲ and ╱ ).
 #[derive(Clone)]
 pub struct DiagonalsConstraint;
@@ -575,7 +580,7 @@ impl<'a> RelativeCellIter<'a, ISizePairIterator<'a>> {
 
 /// A trait for `Constraint`s that are defined by having no forbidden numbers
 /// in some relative configuration to the reference cell. Whether a number is
-/// forbidden is defined by [is_forbidden](#method.is_forbidden), which is a
+/// forbidden is defined by [RelativeCellConstraint::is_forbidden], which is a
 /// boolean relation between the reference cell and the other cell. By default,
 /// this checks for equality.
 ///
@@ -591,10 +596,10 @@ pub trait RelativeCellConstraint {
 
     /// Given the contents of the reference cell and one other cell that is
     /// removed by one set of coordinates specified in
-    /// [RELATIVE_COORDINATES](#associatedconstant.RELATIVE_COORDINATES), this
-    /// method determines whether the reference cell violates the constraint.
-    /// Since it is assumed that an empty cell cannot violate the constraint,
-    /// this method is only called if both cells contain a number.
+    /// [RelativeCellConstraint::RELATIVE_COORDINATES], this method determines
+    /// whether the reference cell violates the constraint. Since it is assumed
+    /// that an empty cell cannot violate the constraint, this method is only
+    /// called if both cells contain a number.
     ///
     /// As an example, for ordinary constraints such as the no-knight's-move-
     /// constraint, this is usually an equality check. A cell removed by a
@@ -610,8 +615,7 @@ pub trait RelativeCellConstraint {
     /// * `reference_cell`: The cell which is currently tested, i.e. relative
     /// to which the coordinates are defined.
     /// * `other_cell`: A cell removed from the `reference_cell` by a set of
-    /// coordinates from
-    /// [RELATIVE_COORDINATES](#associatedconstant.RELATIVE_COORDINATES).
+    /// coordinates from [RelativeCellConstraint::RELATIVE_COORDINATES].
     fn is_forbidden(&self, reference_cell: usize, other_cell: usize) -> bool {
         reference_cell == other_cell
     }
@@ -639,7 +643,7 @@ impl<C: RelativeCellConstraint> Constraint for C {
     }
 }
 
-/// A `RelativeCellConstraint` that excludes duplicates a Chess-Knight's move
+/// A [RelativeCellConstraint] that excludes duplicates a Chess-Knight's move
 /// away from the reference cell.
 ///
 /// As a visualization, the cells marked with 'X' in the following grid are
@@ -676,12 +680,12 @@ impl RelativeCellConstraint for KnightsMoveConstraint {
     const RELATIVE_COORDINATES: &'static [(isize, isize)] = &KNIGHTS_MOVES;
 }
 
-/// A `RelativeCellConstraint` that excludes duplicates a Chess-Kings's move
+/// A [RelativeCellConstraint] that excludes duplicates a Chess-Kings's move
 /// away from the reference cell (orthogonally or diagonally adjacent). Note
 /// that some checks performed by this constraint are redundant if standard
 /// Sudoku rules apply, since orthogonally adjacent cells are either in the
 /// same row or column as the reference cell. In that case, using the
-/// `DiagonallyAdjacentConstraint` is more efficient and has the same effect.
+/// [DiagonallyAdjacentConstraint] is more efficient and has the same effect.
 #[derive(Clone)]
 pub struct KingsMoveConstraint;
 
@@ -700,9 +704,9 @@ impl RelativeCellConstraint for KingsMoveConstraint {
     const RELATIVE_COORDINATES: &'static [(isize, isize)] = &KINGS_MOVES;
 }
 
-/// A `RelativeCellConstraint` that excludes duplicates in a diagonally
+/// A [RelativeCellConstraint] that excludes duplicates in a diagonally
 /// adjacent cell to the reference cell. If normal Sudoku rules apply, this is
-/// equivalent to a `KingsMoveConstraint`.
+/// equivalent to a [KingsMoveConstraint].
 ///
 /// As a visualization, the cells marked with 'X' in the following grid are
 /// excluded from being a 3:
@@ -731,7 +735,7 @@ impl RelativeCellConstraint for DiagonallyAdjacentConstraint {
         &DIAGONALLY_ADJACENT;
 }
 
-/// A `RelativeCellConstraint` that excludes consecutive digits in orthogonally
+/// A [RelativeCellConstraint] that excludes consecutive digits in orthogonally
 /// adjacent cells. As a visualization, the cells marked with 'X' in the
 /// following grid are excluded from being a 2 or a 4:
 ///
@@ -763,12 +767,12 @@ impl RelativeCellConstraint for AdjacentConsecutiveConstraint {
     }
 }
 
-/// A `Constraint` which simultaneously enforces two other constraints. This
+/// A [Constraint] which simultaneously enforces two other constraints. This
 /// allows the construction of complex constraints by nesting composite
 /// constraints.
 ///
-/// As an example, a constraint with `DefaultConstraint`,
-/// `DiagonalsConstraint`, and `KnightsMoveConstraint` would be constructed
+/// As an example, a constraint with [DefaultConstraint],
+/// [DiagonalsConstraint], and [KnightsMoveConstraint] would be constructed
 /// as follows:
 ///
 /// ```
@@ -788,10 +792,10 @@ impl RelativeCellConstraint for AdjacentConsecutiveConstraint {
 /// );
 /// ```
 ///
-/// The advantage of using this over a
-/// [DynamicConstraint](struct.DynamicConstraint.html) is that it is statically
-/// known which types of constraints are used, so no dynamic dispatch is
-/// necessary. On the contrary, a `CompositeConstraint` is less flexible.
+/// The advantage of using this over a [DynamicConstraint] is that it is
+/// statically known which types of constraints are used, so no dynamic
+/// dispatch is necessary. On the contrary, a `CompositeConstraint` is less
+/// flexible.
 #[derive(Clone)]
 pub struct CompositeConstraint<C1, C2>
 where
@@ -845,10 +849,10 @@ where
     }
 }
 
-/// A trait for cloneable `Constraints` which is used in the
-/// `DynamicConstraint` to clone trait objects. Normally a user should not have
+/// A trait for cloneable [Constraint]s which is used in the
+/// [DynamicConstraint] to clone trait objects. Normally a user should not have
 /// to implement this trait manually, as it is automatically implemented for
-/// all `Constraint`s that implement `Clone` (and have static lifetime).
+/// all `Constraint`s that implement [Clone] (and have static lifetime).
 pub trait CloneConstraint : Constraint {
 
     /// Clones a trait object of this constraint.
@@ -861,9 +865,9 @@ impl<C: Constraint + Clone + 'static> CloneConstraint for C {
     }
 }
 
-/// A `Constraint` that contains a vector of trait objects representing
+/// A [Constraint] that contains a vector of trait objects representing
 /// constraints and verifies all of them. This is more flexible than a
-/// `CompositeConstraint`, but also less efficient, since it needs dynamic
+/// [CompositeConstraint], but also less efficient, since it needs dynamic
 /// dispatch.
 pub struct DynamicConstraint {
     constraints: Vec<Box<dyn CloneConstraint>>
@@ -882,15 +886,15 @@ impl DynamicConstraint {
     }
 
     /// Creates a new dynamic constraint without any child constraint. Children
-    /// can be added later using [DynamicConstraint.add](#method.add).
+    /// can be added later using [DynamicConstraint::add].
     pub fn new() -> DynamicConstraint {
         DynamicConstraint {
             constraints: Vec::new()
         }
     }
 
-    /// Adds a [CloneConstraint](trait.CloneConstraint.html) to this dynamic
-    /// constraint as a child. It is wrapped in a trait object.
+    /// Adds a [CloneConstraint] to this dynamic constraint as a child. It is
+    /// wrapped in a trait object.
     pub fn add(&mut self, constraint: impl CloneConstraint + 'static) {
         self.constraints.push(Box::new(constraint))
     }

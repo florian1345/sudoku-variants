@@ -15,8 +15,7 @@
 //!
 //! # Parsing and printing Sudoku
 //!
-//! See [SudokuGrid::parse](struct.SudokuGrid.html#method.parse) for the exact
-//! format of a Sudoku code.
+//! See [SudokuGrid::parse] for the exact format of a Sudoku code.
 //!
 //! Codes can be used to exchange Sudoku, while pretty prints can be used to
 //! display a Sudoku in a clearer manner. An example of how to parse and
@@ -32,11 +31,10 @@
 //!
 //! # Checking validity of Sudoku
 //!
-//! To check validity, an instance of [Sudoku](struct.Sudoku.html) not only
-//! contains the numbers (stored in a [SudokuGrid](struct.SudokuGrid.html)),
-//! but also some constraint which specifies the rules. For classic Sudoku
-//! rules, [DefaultConstraint](constraint/struct.DefaultConstraint.html) can be
-//! used.
+//! To check validity, an instance of [Sudoku] not only contains the numbers
+//! (stored in a [SudokuGrid]), but also some constraint which specifies the
+//! rules. For classic Sudoku rules,
+//! [DefaultConstraint](constraint::DefaultConstraint) can be used.
 //!
 //! It is possible to check an entire Sudoku, individual cells, or potential
 //! changes to individual cells that do not require changing the Sudoku's
@@ -80,32 +78,30 @@
 //! ```
 //!
 //! Similarly, it is also possible to check a singular cell with a potntial new
-//! entry, before changing the Sudoku, using
-//! [Sudoku.is_valid_number](struct.Sudoku.html#method.is_valid_number). Since
+//! entry, before changing the Sudoku, using [Sudoku::is_valid_number]. Since
 //! it otherwise behaves just like the example above, we will not provide
 //! another example.
 //!
 //! All examples above have been using the
-//! [DefaultConstraint](constraint/struct.DefaultConstraint.html), which is
-//! actually a composition of
-//! [RowConstraint](constraint/struct.RowConstraint.html),
-//! [ColumnConstraint](constraint/struct.ColumnConstraint.html), and
-//! [BlockConstraint](constraint/struct.BlockConstraint.html). Additionally to
+//! [DefaultConstraint](constraint::DefaultConstraint), which is actually a
+//! composition of [RowConstraint](constraint::RowConstraint),
+//! [ColumnConstraint](constraint::ColumnConstraint), and
+//! [BlockConstraint](constraint::BlockConstraint). Additionally to
 //! those three primitives, a few more common Sudoku variants' rules are
 //! provided, which can be combined into more exciting rule sets. Check out the
-//! [constraint](constraint/index.html) module for more details and
-//! instructions on how to write your own rules.
+//! [constraint] module for more details and instructions on how to write your
+//! own rules.
 //!
 //! # Solving Sudoku
 //!
-//! This crate offers a [Solver](solver/trait.Solver.html) trait for structs
-//! that can totally or partially solve Sudoku (that is, able to solve every
-//! Sudoku with a unique solution or not). As a default implementation,
-//! [BacktrackingSolver](solver/struct.BacktrackingSolver.html) is provided,
-//! which can solve every uniquely solveable Sudoku.
+//! This crate offers a [Solver](solver::Solver) trait for structs that can
+//! totally or partially solve Sudoku (that is, able to solve every Sudoku with
+//! a unique solution or not). As a default implementation,
+//! [BacktrackingSolver](solver::BacktrackingSolver) is provided, which can
+//! solve every uniquely solveable Sudoku.
 //!
 //! To use it, first instantiate a Sudoku an then call
-//! [Solver.solve](solver/trait.Solver.html#tymethod.solve) on a backtracking
+//! [Solver.solve](solver::Solver::solve) on a backtracking
 //! solver (as it is a zero-sized struct, no instantiation is required).
 //!
 //! ```
@@ -143,8 +139,8 @@
 //!
 //! Probably the most interesting feature of this crate is the generation of
 //! random Sudoku. This is done in two steps: generating a full grid using a
-//! [Generator](generator/struct.Generator.html) and then removing as many
-//! clues as possible using a [Reducer](generator/struct.Reducer.html).
+//! [Generator](generator::Generator) and then removing as many clues as
+//! possible using a [Reducer](generator::Reducer).
 //!
 //! The generator needs a solver, which helps to reduce the search space for
 //! valid grids, and a random number generator, for which we use the `Rng`
@@ -665,15 +661,14 @@ impl SudokuGrid {
     }
 
     /// Indicates whether this grid is full, i.e. every cell is filled with a
-    /// number. In this case, [SudokuGrid.count_clues](#method.count_clues)
-    /// returns the square of [SudokuGrid.size](#method.size).
+    /// number. In this case, [SudokuGrid::count_clues] returns the square of
+    /// [SudokuGrid::size].
     pub fn is_full(&self) -> bool {
         !self.cells.iter().any(|c| c == &None)
     }
 
     /// Indicates whether this grid is empty, i.e. no cell is filled with a
-    /// number. In this case, [SudokuGrid.count_clues](#method.count_clues)
-    /// returns 0.
+    /// number. In this case, [SudokuGrid::count_clues] returns 0.
     pub fn is_empty(&self) -> bool {
         self.cells.iter().all(|c| c == &None)
     }
@@ -734,7 +729,7 @@ impl SudokuGrid {
 /// check it.
 ///
 /// There is no guarantee  that the Sudoku is uniquely solveable or even
-/// solveable at all, however there are ways to check that (see the `solver`
+/// solveable at all, however there are ways to check that (see the [solver]
 /// module).
 #[derive(Clone)]
 pub struct Sudoku<C: Constraint + Clone> {
@@ -760,7 +755,7 @@ impl<C: Constraint + Clone> Sudoku<C> {
     /// greater than 0.
     /// * `constraint`: The constraint which is checked by this Sudoku. Grid
     /// configurations which violate this constraint will be seen as invalid by
-    /// [Sudoku.is_valid](struct.Sudoku.html#method.is_valid).
+    /// [Sudoku::is_valid()].
     ///
     /// # Errors
     ///
@@ -780,11 +775,11 @@ impl<C: Constraint + Clone> Sudoku<C> {
     ///
     /// # Arguments
     ///
-    /// * `grid`: The initial [SudokuGrid](struct.SudokuGrid.html) which
-    /// contains the numbers with which the Sudoku is filled.
+    /// * `grid`: The initial [SudokuGrid] which contains the numbers with
+    /// which the Sudoku is filled.
     /// * `constraint`: The constraint which is checked by this Sudoku. Grid
     /// configurations which violate this constraint will be seen as invalid by
-    /// [Sudoku.is_valid](struct.Sudoku.html#method.is_valid).
+    /// [Sudoku::is_valid]).
     pub fn new_with_grid(grid: SudokuGrid, constraint: C) -> Sudoku<C> {
         Sudoku {
             grid,
@@ -792,26 +787,22 @@ impl<C: Constraint + Clone> Sudoku<C> {
         }
     }
 
-    /// Parses the code into a [SudokuGrid](struct.SudokuGrid.html) using
-    /// [SudokuGrid::parse](struct.SudokuGrid.html#method.parse) and wraps the
-    /// result in a Sudoku with the given constraint. Note that it is not
+    /// Parses the code into a [SudokuGrid] using [SudokuGrid::parse] and wraps
+    /// the result in a Sudoku with the given constraint. Note that it is not
     /// required that the code matches the constraint. It is perfectly legal to
     /// parse an invalid Sudoku.
     ///
     /// # Arguments
     ///
-    /// * `code`: The code that specifies the grid. See
-    /// [SudokuGrid::parse](struct.SudokuGrid.html#method.parse) for a language
-    /// specification.
+    /// * `code`: The code that specifies the grid. See [SudokuGrid::parse] for
+    /// a language specification.
     /// * `constraint`: The constraint which is checked by this Sudoku. Grid
     /// configurations which violate this constraint will be seen as invalid by
-    /// [Sudoku.is_valid](struct.Sudoku.html#method.is_valid).
+    /// [Sudoku::is_valid].
     ///
     /// # Errors
     ///
-    /// If the parsing fails. See
-    /// [SudokuGrid::parse](struct.SudokuGrid.html#method.parse) for further
-    /// information.
+    /// If the parsing fails. See [SudokuGrid::parse] for further information.
     pub fn parse(code: &str, constraint: C) -> SudokuParseResult<Sudoku<C>> {
         Ok(Sudoku::new_with_grid(SudokuGrid::parse(code)?, constraint))
     }
@@ -891,10 +882,10 @@ impl<C: Constraint + Clone> Sudoku<C> {
         }
     }
 
-    /// Indicates whether the given [SudokuGrid](struct.SudokuGrid.html) is a
-    /// valid solution to this puzzle. That is the case if all digits from this
-    /// Sudoku can be found in the `solution`, it matches the constraint of
-    /// this Sudoku, and it is full.
+    /// Indicates whether the given [SudokuGrid] is a valid solution to this
+    /// puzzle. That is the case if all digits from this Sudoku can be found in
+    /// the `solution`, it matches the constraint of this Sudoku, and it is
+    /// full.
     ///
     /// # Errors
     ///

@@ -3,9 +3,8 @@
 use std::num::ParseIntError;
 
 /// Miscellaneous errors that can occur on some methods in the
-/// [root module](../index.html). This does not exclude errors that occur when
-/// parsing Sudoku, see [SudokuParseError](enum.SudokuParseError.html) for
-/// that.
+/// [root module](crate). This does not exclude errors that occur when parsing
+/// Sudoku, see [SudokuParseError] for that.
 #[derive(Debug, Eq, PartialEq)]
 pub enum SudokuError {
 
@@ -32,8 +31,8 @@ pub enum SudokuError {
 /// Syntactic sugar for `Result<V, SudokuError>`.
 pub type SudokuResult<V> = Result<V, SudokuError>;
 
-/// An enumeration of the errors that may occur when parsing a `Sudoku` or
-/// `SudokuGrid`.
+/// An enumeration of the errors that may occur when parsing a
+/// [Sudoku](crate::Sudoku) or [SudokuGrid](crate::SudokuGrid).
 #[derive(Debug, Eq, PartialEq)]
 pub enum SudokuParseError {
 
