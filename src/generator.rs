@@ -30,12 +30,12 @@ impl Generator<ThreadRng> {
     }
 }
 
-fn shuffle<T>(rng: &mut impl Rng, nums: impl Iterator<Item = T>) -> Vec<T> {
-    let mut vec: Vec<T> = nums.collect();
+fn shuffle<T>(rng: &mut impl Rng, values: impl Iterator<Item = T>) -> Vec<T> {
+    let mut vec: Vec<T> = values.collect();
     let len = vec.len();
 
-    for i in 1..(len - 1) {
-        let j = rng.gen_range(0, i + 1);
+    for i in 0..(len - 1) {
+        let j = rng.gen_range(i, len);
         vec.swap(i, j);
     }
 
@@ -210,6 +210,46 @@ mod tests {
         let mut reducer = Reducer::new_default();
         reducer.reduce(&mut sudoku);
         sudoku
+    }
+
+    #[test]
+    fn shuffling_uniformly_distributed() {
+        // 18000 experiments, 6 options (3!), so if uniformly distributed:
+        // p = 1/6, my = 3000, sigma = sqrt(18000 * 1/6 * 5/6) = 50
+        // with a probability of the amount being in the range [2600, 3400]
+        // is more than 99,9999999999999 %.
+
+        let mut counts = [0; 6];
+        let mut rng = rand::thread_rng();
+        
+        for _ in 0..18000 {
+            let result = shuffle(&mut rng, 1..=3);
+
+            if result == vec![1, 2, 3] {
+                counts[0] += 1;
+            }
+            else if result == vec![1, 3, 2] {
+                counts[1] += 1;
+            }
+            else if result == vec![2, 1, 3] {
+                counts[2] += 1;
+            }
+            else if result == vec![2, 3, 1] {
+                counts[3] += 1;
+            }
+            else if result == vec![3, 1, 2] {
+                counts[4] += 1;
+            }
+            else if result == vec![3, 2, 1] {
+                counts[5] += 1;
+            }
+        }
+
+        for (i, count) in counts.iter().enumerate() {
+            assert!(*count >= 2600 && *count <= 3400,
+                format!("{} is not in range [2600, 3400] (index {}).",
+                    count, i));
+        }
     }
 
     #[test]
