@@ -1,6 +1,6 @@
 [package]
 name = "sudoku-variants"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["florian1345 <florian1345@gmx.de>"]
 edition = "2018"
 description = "A flexible Sudoku engine that supports common variations and custom rules."
