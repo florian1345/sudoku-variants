@@ -716,8 +716,16 @@ impl SudokuGrid {
         other.is_subset(self)
     }
 
+    /// Gets a reference to the vector which holds the cells. They are in
+    /// left-to-right, top-to-bottom order, where rows are together.
     pub fn cells(&self) -> &Vec<Option<usize>> {
         &self.cells
+    }
+
+    /// Gets a mutable reference to the vector which holds the cells. They are
+    /// in left-to-right, top-to-bottom order, where rows are together.
+    pub fn cells_mut(&mut self) -> &mut Vec<Option<usize>> {
+        &mut self.cells
     }
 }
 
