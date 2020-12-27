@@ -22,8 +22,7 @@ pub struct USizeSet {
     content: Vec<u64>
 }
 
-/// An enumeration of the errors that can happen when using a
-/// [USizeSet](struct.USizeSet.html).
+/// An enumeration of the errors that can happen when using a [USizeSet].
 #[derive(Debug)]
 pub enum USizeSetError {
 
@@ -77,7 +76,7 @@ impl Iterator for BitIterator {
     }
 }
 
-/// An iterator over the content of a [USizeSet](struct.USizeSet.html).
+/// An iterator over the content of a [USizeSet].
 pub struct USizeSetIter<'a> {
     offset: usize,
     current: BitIterator,
@@ -263,19 +262,18 @@ impl USizeSet {
         }
     }
 
-    /// Inserts the given number into this set, such that
-    /// [USizeSet.contains](#method.contains) returns `true` for this number
-    /// afterwards. Note that it must be within the bounds provided at
-    /// construction time.
+    /// Inserts the given number into this set, such that [USizeSet::contains]
+    /// returns `true` for this number afterwards. Note that it must be within
+    /// the bounds provided at construction time.
     ///
     /// This method returns `true` if the set has changed (i.e. the number was
     /// not present before) and `false` otherwise.
     ///
     /// # Errors
     ///
-    /// If `number` is less than [USizeSet.min](#method.min) or greater than
-    /// [USizeSet.max](#method.max). In that case, `USizeSetError::OutOfBounds`
-    /// is returned.
+    /// If `number` is less than [USizeSet::min] or greater than
+    /// [USizeSet::max]. In that case, `USizeSetError::OutOfBounds` is
+    /// returned.
     pub fn insert(&mut self, number: usize) -> USizeSetResult<bool> {
         let (word_index, mask) = self.compute_index(number)?;
         let word = &mut self.content[word_index];
@@ -290,19 +288,18 @@ impl USizeSet {
         }
     }
 
-    /// Removes the given number from this set, such that
-    /// [USizeSet.contains](#method.contains) returns `false` for this number
-    /// afterwards. Note that it must be within the bounds provided at
-    /// construction time.
+    /// Removes the given number from this set, such that [USizeSet::contains]
+    /// returns `false` for this number afterwards. Note that it must be within
+    /// the bounds provided at construction time.
     ///
     /// This method returns `true` if the set has changed (i.e. the number was
     /// present before) and `false` otherwise.
     ///
     /// # Errors
     ///
-    /// If `number` is less than [USizeSet.min](#method.min) or greater than
-    /// [USizeSet.max](#method.max). In that case, `USizeSetError::OutOfBounds`
-    /// is returned.
+    /// If `number` is less than [USizeSet::min] or greater than
+    /// [USizeSet::max]. In that case, `USizeSetError::OutOfBounds` is
+    /// returned.
     pub fn remove(&mut self, number: usize) -> USizeSetResult<bool> {
         let (word_index, mask) = self.compute_index(number)?;
         let word = &mut self.content[word_index];
@@ -317,9 +314,9 @@ impl USizeSet {
         }
     }
 
-    /// Removes all numbers from this set, such that
-    /// [USizeSet.contains](#method.contains) will return `false` for all
-    /// inputs and [USizeSet.is_empty](#method.is_empty) will return `true`.
+    /// Removes all numbers from this set, such that [USizeSet::contains] will
+    /// return `false` for all inputs and [USizeSet::is_empty] will return
+    /// `true`.
     pub fn clear(&mut self) {
         for i in 0..self.content.len() {
             self.content[i] = 0;
@@ -335,8 +332,8 @@ impl USizeSet {
     }
 
     /// Indicates whether this set is empty, i.e. contains no numbers. If this
-    /// method returns `true`, [USizeSet.contains](#method.contains) will
-    /// return `false` for all inputs.
+    /// method returns `true`, [USizeSet::contains] will return `false` for all
+    /// inputs.
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
@@ -383,10 +380,9 @@ impl USizeSet {
     /// Computes the set union between this and the given set and stores the
     /// result in this set. The bounds of this set and `other` must be equal.
     ///
-    /// `USizeSet` implements
-    /// [BitOrAssign](https://doc.rust-lang.org/std/ops/trait.BitOrAssign.html)
-    /// as syntactic sugar for this operation. Note that that implementation
-    /// panics instead of returning potential errors.
+    /// `USizeSet` implements [BitOrAssign] as syntactic sugar for this
+    /// operation. Note that that implementation panics instead of returning
+    /// potential errors.
     ///
     /// # Returns
     ///
@@ -404,10 +400,9 @@ impl USizeSet {
     /// result in a new set which is returned. The bounds of this set and
     /// `other` must be equal.
     ///
-    /// `USizeSet` implements
-    /// [BitOr](https://doc.rust-lang.org/std/ops/trait.BitOr.html) as
-    /// syntactic sugar for this operation. Note that that implementation
-    /// panics instead of returning potential errors.
+    /// `USizeSet` implements [BitOr] as syntactic sugar for this operation.
+    /// Note that that implementation  panics instead of returning potential
+    /// errors.
     ///
     /// # Errors
     ///
@@ -421,10 +416,9 @@ impl USizeSet {
     /// the result in this set. The bounds of this set and `other` must be
     /// equal.
     ///
-    /// `USizeSet` implements
-    /// [BitAndAssign](https://doc.rust-lang.org/std/ops/trait.BitAndAssign.html)
-    /// as syntactic sugar for this operation. Note that that implementation
-    /// panics instead of returning potential errors.
+    /// `USizeSet` implements [BitAndAssign] as syntactic sugar for this
+    /// operation. Note that that implementation panics instead of returning
+    /// potential errors.
     ///
     /// # Returns
     ///
@@ -443,10 +437,9 @@ impl USizeSet {
     /// the result in a new set which is returned. The bounds of this set and
     /// `other` must be equal.
     ///
-    /// `USizeSet` implements
-    /// [BitAnd](https://doc.rust-lang.org/std/ops/trait.BitAnd.html) as
-    /// syntactic sugar for this operation. Note that that implementation
-    /// panics instead of returning potential errors.
+    /// `USizeSet` implements [BitAnd] as syntactic sugar for this operation.
+    /// Note that that implementation panics instead of returning potential
+    /// errors.
     ///
     /// # Errors
     ///
@@ -461,10 +454,9 @@ impl USizeSet {
     /// equal. `other` acts as the right-hand-side, meaning its elements are
     /// removed from the result.
     ///
-    /// `USizeSet` implements
-    /// [SubAssign](https://doc.rust-lang.org/std/ops/trait.SubAssign.html) as
-    /// syntactic sugar for this operation. Note that that implementation
-    /// panics instead of returning potential errors.
+    /// `USizeSet` implements [SubAssign] as syntactic sugar for this
+    /// operation. Note that that implementation panics instead of returning
+    /// potential errors.
     ///
     /// # Returns
     ///
@@ -483,10 +475,8 @@ impl USizeSet {
     /// the result in a new set which is returned. The bounds of this set and
     /// `other` must be equal.
     ///
-    /// `USizeSet` implements
-    /// [Sub](https://doc.rust-lang.org/std/ops/trait.Sub.html) as syntactic
-    /// sugar for this operation. Note that that implementation panics instead
-    /// of returning potential errors.
+    /// `USizeSet` implements [Sub] as syntactic sugar for this operation. Note
+    /// that that implementation panics instead of returning potential errors.
     ///
     /// # Errors
     ///
@@ -500,10 +490,9 @@ impl USizeSet {
     /// and stores the result in this set. The bounds of this set and `other`
     /// must be equal.
     ///
-    /// `USizeSet` implements
-    /// [BitXorAssign](https://doc.rust-lang.org/std/ops/trait.BitXorAssign.html)
-    /// as syntactic sugar for this operation. Note that that implementation
-    /// panics instead of returning potential errors.
+    /// `USizeSet` implements [BitXorAssign] as syntactic sugar for this
+    /// operation. Note that that implementation panics instead of returning
+    /// potential errors.
     ///
     /// # Returns
     ///
@@ -522,10 +511,9 @@ impl USizeSet {
     /// and stores the result in a new set which is returned. The bounds of
     /// this set and `other` must be equal.
     ///
-    /// `USizeSet` implements
-    /// [BitXor](https://doc.rust-lang.org/std/ops/trait.BitXor.html) as
-    /// syntactic sugar for this operation. Note that that implementation
-    /// panics instead of returning potential errors.
+    /// `USizeSet` implements [BitXor] as syntactic sugar for this operation.
+    /// Note that that implementation panics instead of returning potential
+    /// errors.
     ///
     /// # Errors
     ///

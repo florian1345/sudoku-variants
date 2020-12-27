@@ -6,11 +6,10 @@ use crate::util::USizeSet;
 
 use std::collections::HashSet;
 
-/// Enriches a [Sudoku](../../struct.Sudoku.html) with additional information
-/// about which numbers can go into the cells.. This is analogous to the pencil
-/// markings a human player would make. It is used by
-/// [Strategies](trait.Strategy.html) to communicate the results of logical
-/// reasoning.
+/// Enriches a [Sudoku] with additional information about which numbers can go
+/// into the cells. This is analogous to the pencil markings a human player
+/// would make. It is used by [Strategies](Strategy) to communicate the results
+/// of logical reasoning.
 ///
 /// This struct already excludes options which violate the Sudoku's constraint,
 /// unless unprocessed changes have been made.
@@ -23,10 +22,10 @@ pub struct SudokuInfo<C: Constraint + Clone> {
 
 impl<C: Constraint + Clone> SudokuInfo<C> {
 
-    /// Creates a new Sudok info for a [Sudoku](../../struct.Sudoku.html). The
-    /// options for all cells that are empty in the provided Sudoku are all
-    /// valid digits, and the options for cells which are filled in the Sudoku
-    /// are only the digit in that cell.
+    /// Creates a new Sudok info for a [Sudoku]. The options for all cells that
+    /// are empty in the provided Sudoku are all valid digits, and the options
+    /// for cells which are filled in the Sudoku are only the digit in that
+    /// cell.
     pub fn from_sudoku(sudoku: Sudoku<C>) -> SudokuInfo<C> {
         let size = sudoku.grid().size();
         let mut cell_options = Vec::new();
@@ -100,11 +99,11 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
     /// Sets the content of the cell at the specified position to the given
     /// number. If the cell was not empty, the old number will be overwritten.
     ///
-    /// In contrast with [enter_cell](#method.enter_cell), this method does not
-    /// remove cell options that are invalidated by the new digit. This is done
-    /// for performance reasons to allow batching of multiple changes before
-    /// updating the options. To ensure the cell options are up-to-date, call
-    /// [invalidate](#method.invalidate) after making any changes.
+    /// In contrast with [enter_cell](SudokuInfo::enter_cell), this method does
+    /// not remove cell options that are invalidated by the new digit. This is
+    /// done for performance reasons to allow batching of multiple changes
+    /// before updating the options. To ensure the cell options are up-to-date,
+    /// call [invalidate](SudokuInfo::invalidate) after making any changes.
     ///
     /// # Arguments
     ///
@@ -131,9 +130,10 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
     /// Sets the content of the cell at the specified position to the given
     /// number. If the cell was not empty, the old number will be overwritten.
     ///
-    /// In contrast with [enter_cell_no_update](#method.enter_cell_no_update),
-    /// this method immediately removes all cell options that are invalidated
-    /// by the new digit.
+    /// In contrast with
+    /// [enter_cell_no_update](SudokuInfo::enter_cell_no_update), this method
+    /// immediately removes all cell options that are invalidated by the new
+    /// digit.
     ///
     /// # Arguments
     ///
@@ -197,18 +197,17 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
     }
 
     /// Removes all cell options that have been invalidated by digits entered
-    /// using [enter_cell_no_update](#method.enter_cell_no_update) which have
-    /// not yet been processed. If there are no pending digits, nothing will be
-    /// done.
+    /// using [enter_cell_no_update](SudokuInfo::enter_cell_no_update) which
+    /// have not yet been processed. If there are no pending digits, nothing
+    /// will be done.
     pub fn invalidate(&mut self) {
         if !self.up_to_date {
             self.update();
         }
     }
 
-    /// Gets a [USizeSet](../../util/struct.USizeSet.html) of the possible
-    /// digits that can be entered into the cell at the given position
-    /// according to this grid info.
+    /// Gets a [USizeSet] of the possible digits that can be entered into the
+    /// cell at the given position according to this grid info.
     ///
     /// Note that, because options are adapted to new digits lazily, this
     /// operation may require changes to this instance, namely if digits were
@@ -232,8 +231,7 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
         Ok(&self.cell_options[index])
     }
 
-    /// Gets a mutable reference to the
-    /// [USizeSet](../../util/struct.USizeSet.html) that tracks the possible
+    /// Gets a mutable reference to the [USizeSet] that tracks the possible
     /// digits that can be entered into the cell at the given position
     /// according to this grid info.
     ///
@@ -259,22 +257,22 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
     }
 
     /// Gets the total size of the grid for which this instance tracks
-    /// information on one axis (horizontally or ertically). Since grids are
+    /// information on one axis (horizontally or vertically). Since grids are
     /// always squares, this is guaranteed to be valid for both axes.
     pub fn size(&self) -> usize {
         self.sudoku.grid().size()
     }
 
     /// Gets a read-only reference to the vector storing the options for every
-    /// cell in a [USizeSet](../../util/struct.USizeSet.html). The cells are in
-    /// left-to-right, top-to-bottom order, where rows are together.
+    /// cell in a [USizeSet]. The cells are in eft-to-right, top-to-bottom
+    /// order, where rows are together.
     pub fn cell_options(&self) -> &Vec<USizeSet> {
         &self.cell_options
     }
 
     /// Gets a mutable reference to the vector storing the options for every
-    /// cell in a [USizeSet](../../util/struct.USizeSet.html). The cells are in
-    /// left-to-right, top-to-bottom order, where rows are together.
+    /// cell in a [USizeSet]. The cells are in left-to-right, top-to-bottom
+    /// order, where rows are together.
     pub fn cell_options_mut(&mut self) -> &mut Vec<USizeSet> {
         &mut self.cell_options
     }
@@ -315,14 +313,14 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
         Ok(())
     }
 
-    /// Gets the [Sudoku](../../struct.Sudoku.html) for which this Sudoku info
-    /// stores additional information.
+    /// Gets the [Sudoku] for which this Sudoku info stores additional
+    /// information.
     pub fn sudoku(&self) -> &Sudoku<C> {
         &self.sudoku
     }
 
-    /// Gets a mutable reference to the [Sudoku](../../struct.Sudoku.html) for
-    /// which this Sudoku info stores additional information.
+    /// Gets a mutable reference to the [Sudoku] for which this Sudoku info
+    /// stores additional information.
     pub fn sudoku_mut(&mut self) -> &mut Sudoku<C> {
         &mut self.sudoku
     }
@@ -457,12 +455,11 @@ pub trait Strategy {
     fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>) -> bool;
 }
 
-/// A partial [Solver](../trait.Solver.html) which uses a
-/// [Strategy](trait.Strategy.html) to solve a Sudoku as well as possible. If
-/// it finds a contradiction, it will conclude that the Sudoku is impossible.
-/// If it cannot solve it, it will resort to returning `Solution::Ambiguous`.
-/// Only if the wrapped strategy is able to solve the Sudoku completely, a
-/// `Solution::Unique` variant is returned.
+/// A partial [Solver] which uses a [Strategy] to solve a Sudoku as well as
+/// possible. If it finds a contradiction, it will conclude that the Sudoku is
+/// impossible. If it cannot solve it, it will resort to returning
+/// `Solution::Ambiguous`. Only if the wrapped strategy is able to solve the
+/// Sudoku completely, a `Solution::Unique` variant is returned.
 pub struct StrategicSolver<S: Strategy> {
     strategy: S
 }
@@ -504,10 +501,11 @@ impl<S: Strategy + Clone> Clone for StrategicSolver<S> {
     }
 }
 
-/// A perfect [Solver](../trait.Solver.html) which uses a
-/// [Strategy](trait.Strategy.html) to accelerate the solving process. Under
-/// the assumption that the strategy is correct, this should yield the same
-/// result as a [BacktrackingSolver](../struct.BacktrackingSolver.html).
+/// A perfect [Solver] which uses a [Strategy] to accelerate the solving
+/// process. Under the assumption that the strategy is correct, this should
+/// yield the same result as a
+/// [BacktrackingSolver](crate::solver::BacktrackingSolver). Note that using a
+/// complicated strategy can also reduce performance if its utility is too low.
 pub struct StrategicBacktrackingSolver<S: Strategy> {
     strategy: S
 }
@@ -605,8 +603,8 @@ impl<S: Strategy> Solver for StrategicBacktrackingSolver<S> {
     }
 }
 
-/// A [Strategy](trait.Strategy.html) which detects naked singles, that is,
-/// cells which only have one possible value, and enters them into the Sudoku.
+/// A [Strategy] which detects naked singles, that is, cells which only have
+/// one possible value, and enters them into the Sudoku.
 #[derive(Clone)]
 pub struct NakedSingleStrategy;
 
@@ -663,8 +661,8 @@ impl Location {
     }
 }
 
-/// A [Strategy](trait.Strategy.html) which detects situations in which a digit
-/// can only go in one cell of a group.
+/// A [Strategy] which detects situations in which a digit can only go in one
+/// cell of a group.
 ///
 /// As a visualization, the cell marked with X in the following example is the
 /// only one in its block that can be a 2 (using classic Sudoku rules).
@@ -731,10 +729,10 @@ impl Strategy for OnlyCellStrategy {
     }
 }
 
-/// A [Strategy](trait.Strategy.html) which searches groups for tuples, that
-/// is, 2 or more cells that in total have as many options as there are cells
-/// in the tuple. It then excludes all of these options from all cells in the
-/// group which are not a part of the tuple.
+/// A [Strategy] which searches groups for tuples, that is, 2 or more cells
+/// that in total have as many options as there are cells in the tuple. It then
+/// excludes all of these options from all cells in the group which are not a
+/// part of the tuple.
 ///
 /// As an example, consider the following configuration (with standard Sudoku
 /// rules):
@@ -767,8 +765,8 @@ impl Strategy for OnlyCellStrategy {
 /// excludes the options 1-3 and 7-9 from the cell marked with X. The 4 and 5
 /// in the third column then fix it to 6.
 ///
-/// When creating a tuple strategy using [TupleStrategy::new](#method.new), the
-/// maximum size of tuples that are considered can be defined.
+/// When creating a tuple strategy using [TupleStrategy::new], the maximum size
+/// of tuples that are considered can be defined.
 #[derive(Clone)]
 pub struct TupleStrategy<F: Fn(usize) -> usize> {
     max_size_computer: F
@@ -888,10 +886,10 @@ impl<F: Fn(usize) -> usize> Strategy for TupleStrategy<F> {
 
 // TODO find example
 
-/// A [Strategy](trait.Strategy.html) which looks for cells with few options
-/// (up to a specified maximum) and tries all of them. It then uses a wrapped
-/// strategy to find deductions in all paths. If any of those deductions hold
-/// for all options, they are stored in the metadata.
+/// A [Strategy] which looks for cells with few options (up to a specified
+/// maximum) and tries all of them. It then uses a wrapped strategy to find
+/// deductions in all paths. If any of those deductions hold for all options,
+/// they are stored in the metadata.
 #[derive(Clone)]
 pub struct BoundedOptionsBacktrackingStrategy<S: Strategy> {
     max_options: usize,
@@ -949,7 +947,7 @@ impl<S: Strategy> Strategy for BoundedOptionsBacktrackingStrategy<S> {
 
 // TODO BoundedCellsBacktrackingStrategy
 
-/// A strategy which does nothing. This is to be used in backtracking
+/// A [Strategy]] which does nothing. This is to be used in backtracking
 /// strategies to define that no further logic shall be applied after trying an
 /// option.
 #[derive(Clone)]
@@ -961,10 +959,9 @@ impl Strategy for NoStrategy {
     }
 }
 
-/// A [Strategy](trait.Strategy.html) which uses two strategies by first
-/// applying one and then the other on the output of the first one. If any
-/// child changed the state, this strategy is defined to have changed the state
-/// aswell.
+/// A [Strategy] which uses two strategies by first applying one and then the
+/// other on the output of the first one. If any child changed the state, this
+/// strategy is defined to have changed the state aswell.
 pub struct CompositeStrategy<S1: Strategy, S2: Strategy> {
     s1: S1,
     s2: S2

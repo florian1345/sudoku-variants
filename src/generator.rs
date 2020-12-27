@@ -1,8 +1,7 @@
 //! This module contains logic for generating random Sudoku.
 //!
 //! Generation of Sudoku puzzles is done by first generating a full grid with a
-//! [Generator](struct.Generator.html) and then removing some clues using a
-//! [Reducer](struct.Reducer.html).
+//! [Generator] and then removing some clues using a [Reducer].
 
 use crate::Sudoku;
 use crate::constraint::Constraint;
@@ -12,19 +11,17 @@ use crate::solver::{BacktrackingSolver, Solution, Solver};
 use rand::Rng;
 use rand::rngs::ThreadRng;
 
-/// A generator randomly generates a full [Sudoku](../struct.Sudoku.html), that
-/// is, a Sudoku with no missing digits. It uses a random number generator to
-/// decide the content. For most cases, sensible defaults are provided by
-/// [Generator::new_default](struct.Generator.html#method.new_default).
+/// A generator randomly generates a full [Sudoku], that is, a Sudoku with no
+/// missing digits. It uses a random number generator to decide the content.
+/// For most cases, sensible defaults are provided by [Generator::new_default].
 pub struct Generator<R: Rng> {
     rng: R
 }
 
 impl Generator<ThreadRng> {
 
-    /// Creates a new generator that uses a
-    /// [ThreadRng](https://rust-random.github.io/rand/rand/rngs/struct.ThreadRng.html)
-    /// to generate the random digits.
+    /// Creates a new generator that uses a [ThreadRng] to generate the random
+    /// digits.
     pub fn new_default() -> Generator<ThreadRng> {
         Generator::new(rand::thread_rng())
     }
@@ -79,13 +76,10 @@ impl<R: Rng> Generator<R> {
         false
     }
 
-    /// Generates a new random [Sudoku](../struct.Sudoku.html) with all digits
-    /// that matches the given parameters. If it is not possible, an error will
-    /// be returned.
+    /// Generates a new random [Sudoku] with all digits that matches the given
+    /// parameters. If it is not possible, an error will be returned.
     ///
-    /// It is guaranteed that
-    /// [Sudoku.is_valid](../struct.Sudoku.html#method.is_valid) on the result
-    /// returns `true`.
+    /// It is guaranteed that [Sudoku::is_valid] on the result returns `true`.
     ///
     /// # Arguments
     ///
@@ -120,16 +114,13 @@ impl<R: Rng> Generator<R> {
     }
 }
 
-/// A reducer can be applied to the output of a
-/// [Generator](struct.Generator.html) to remove numbers from the grid as long
-/// as it is still uniquely solveable using the provided
-/// [Solver](../solver/trait.Solver.html). This may be intentionally
-/// suboptimal to control the difficulty. A random number generator decides
-/// which digits are removed.
+/// A reducer can be applied to the output of a [Generator] to remove numbers
+/// from the grid as long as it is still uniquely solveable using the provided
+/// [Solver]. This may be intentionally suboptimal to control the difficulty. A
+/// random number generator decides which digits are removed.
 ///
-/// [Reducer::new_default](#method.new_default) will yield a reducer with the
-/// highest difficulty (a perfect backtracking solver) and a
-/// [ThreadRng](https://rust-random.github.io/rand/rand/rngs/struct.ThreadRng.html).
+/// [Reducer::new_default] will yield a reducer with the highest difficulty (a
+/// perfect backtracking solver) and a [ThreadRng].
 pub struct Reducer<S: Solver, R: Rng> {
     solver: S,
     rng: R
@@ -137,11 +128,8 @@ pub struct Reducer<S: Solver, R: Rng> {
 
 impl Reducer<BacktrackingSolver, ThreadRng> {
 
-    /// Generates a new reducer with a
-    /// [BacktrackingSolver](../solver/struct.BacktrackingSolver.html) to check
-    /// unique solveability and a
-    /// [ThreadRng](https://rust-random.github.io/rand/rand/rngs/struct.ThreadRng.html)
-    /// to decide which digits are removed.
+    /// Generates a new reducer with a [BacktrackingSolver] to check unique
+    /// solveability and a [ThreadRng] to decide which digits are removed.
     pub fn new_default() -> Reducer<BacktrackingSolver, ThreadRng> {
         Reducer::new(BacktrackingSolver, rand::thread_rng())
     }
@@ -153,10 +141,9 @@ impl<S: Solver, R: Rng> Reducer<S, R> {
     ///
     /// # Arguments
     ///
-    /// * `solver`: A [Solver](../solver/trait.Solver.html) to be used to check
-    /// whether a reduced Sudoku is still uniquely solveable. This controls the
-    /// difficulty by specifying a strategy that must be able to solve the
-    /// Sudoku.
+    /// * `solver`: A [Solver] to be used to check whether a reduced Sudoku is
+    /// still uniquely solveable. This controls the difficulty by specifying a
+    /// strategy that must be able to solve the Sudoku.
     /// * `rng`: A random number generator that decides which digits are
     /// removed.
     pub fn new(solver: S, rng: R) -> Reducer<S, R> {
