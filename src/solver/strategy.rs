@@ -272,6 +272,13 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
         &self.cell_options
     }
 
+    /// Gets a mutable reference to the vector storing the options for every
+    /// cell in a [USizeSet](../../util/struct.USizeSet.html). The cells are in
+    /// left-to-right, top-to-bottom order, where rows are together.
+    pub fn cell_options_mut(&mut self) -> &mut Vec<USizeSet> {
+        &mut self.cell_options
+    }
+
     /// Gets the width (number of columns) of one sub-block of the Sudoku. To
     /// ensure a square grid, this is also the number of blocks that compose
     /// the grid vertically.
@@ -301,11 +308,6 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
     pub fn assign(&mut self, other: &SudokuInfo<C>) -> SudokuResult<()> {
         self.sudoku.grid_mut().assign(other.sudoku.grid())?;
 
-        if self.block_width() != other.block_width() ||
-                self.block_height() != other.block_height() {
-            return Err(SudokuError::InvalidDimensions);
-        }
-
         for i in 0..self.cell_options.len() {
             self.cell_options[i] = other.cell_options[i].clone();
         }
@@ -317,6 +319,126 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
     /// stores additional information.
     pub fn sudoku(&self) -> &Sudoku<C> {
         &self.sudoku
+    }
+
+    /// Gets a mutable reference to the [Sudoku](../../struct.Sudoku.html) for
+    /// which this Sudoku info stores additional information.
+    pub fn sudoku_mut(&mut self) -> &mut Sudoku<C> {
+        &mut self.sudoku
+    }
+
+    fn op(&mut self, other: &SudokuInfo<C>,
+            single_op: impl Fn((&mut Option<usize>, &mut USizeSet),
+                (&Option<usize>, &USizeSet)) -> bool)
+            -> SudokuResult<bool> {
+        if self.block_width() != other.block_width() ||
+                self.block_height() != other.block_height() {
+            return Err(SudokuError::InvalidDimensions);
+        }
+
+        let mut changed = false;
+        let iter = (&mut self.sudoku).grid_mut().cells_mut().iter_mut()
+            .zip((&mut self.cell_options).iter_mut())
+            .zip(other.sudoku().grid().cells().iter()
+                .zip(other.cell_options().iter()));
+        
+        for (self_info, other_info) in iter {
+            changed |= single_op(self_info, other_info);
+        }
+
+        Ok(changed)
+    }
+
+    /// Intersects this Sudoku info with the given other one, implying that all
+    /// information of both is correct. All cells that are filled in in either
+    /// will be written in the result and only options that are present in both
+    /// will be retained. Note that contradictions (different digits in this
+    /// and the other Sudoku info) will result in the cell being cleared and
+    /// all options being removed.
+    pub fn intersect_assign(&mut self, other: &SudokuInfo<C>)
+            -> SudokuResult<bool> {
+        self.op(other, |(self_cell, self_options), (other_cell, other_options)| {
+            let cells_changed = if let Some(number) = other_cell {
+                let old_number = self_cell.replace(*number);
+
+                if Some(*number) == old_number {
+                    false
+                }
+                else {
+                    if let Some(_) = old_number {
+                        self_options.clear();
+                        self_cell.take();
+                    }
+
+                    true
+                }
+            }
+            else {
+                false
+            };
+            let options_changed =
+                self_options.intersect_assign(other_options).unwrap();
+            cells_changed || options_changed
+        })
+    }
+
+    /// Unifies this Sudoku info with the given other one, implying that all
+    /// information of both *could* be correct. Options present in at least one
+    /// will be put in the result and digits are only retained if they are
+    /// present in both (unless the other does not have any options for that
+    /// cell). Note that contradictions (different digits in this
+    /// and the other Sudoku info) will result in the cell being cleared and
+    /// both numbers being put in the option set.
+    pub fn union_assign(&mut self, other: &SudokuInfo<C>)
+            -> SudokuResult<bool> {
+        self.op(other, |(self_cell, self_options), (other_cell, other_options)| {
+            let content_changed = if let Some(self_number) = self_cell {
+                if &Some(*self_number) == other_cell || other_options.is_empty() {
+                    false
+                }
+                else if let Some(other_number) = other_cell {
+                    self_options.clear();
+                    self_options.insert(*self_number).unwrap();
+                    self_options.insert(*other_number).unwrap();
+                    self_cell.take();
+                    return true;
+                }
+                else {
+                    self_cell.take();
+                    true
+                }
+            }
+            else if self_options.is_empty() {
+                *self_cell = other_cell.clone();
+                self_cell != &mut None
+            }
+            else {
+                false
+            };
+            let options_changed = self_options.union_assign(other_options).unwrap();
+            content_changed || options_changed
+        })
+    }
+}
+
+impl<C: Constraint + Clone> PartialEq for SudokuInfo<C> {
+    fn eq(&self, other: &Self) -> bool {
+        if self.sudoku().grid() != other.sudoku().grid() {
+            false
+        }
+        else if !self.up_to_date {
+            let mut lhs = self.clone();
+            lhs.update();
+            lhs.eq(other)
+        }
+        else if !other.up_to_date {
+            let mut other = other.clone();
+            other.update();
+            self.eq(&other)
+        }
+        else {
+            self.cell_options() == other.cell_options()
+        }
     }
 }
 
@@ -764,6 +886,81 @@ impl<F: Fn(usize) -> usize> Strategy for TupleStrategy<F> {
     }
 }
 
+// TODO find example
+
+/// A [Strategy](trait.Strategy.html) which looks for cells with few options
+/// (up to a specified maximum) and tries all of them. It then uses a wrapped
+/// strategy to find deductions in all paths. If any of those deductions hold
+/// for all options, they are stored in the metadata.
+#[derive(Clone)]
+pub struct BoundedOptionsBacktrackingStrategy<S: Strategy> {
+    max_options: usize,
+    continuation_strategy: S
+}
+
+impl<S: Strategy> Strategy for BoundedOptionsBacktrackingStrategy<S> {
+    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
+            -> bool {
+        let size = sudoku_info.size();
+        let before_state = sudoku_info.clone();
+
+        for column in 0..size {
+            for row in 0..size {
+                if let Some(_) = sudoku_info.get_cell(column, row).unwrap() {
+                    continue;
+                }
+
+                let options = sudoku_info.get_options(column, row).unwrap();
+
+                if options.len() > self.max_options {
+                    continue;
+                }
+
+                let mut results = Vec::new();
+
+                for option in options.iter() {
+                    let mut sudoku_info = sudoku_info.clone();
+                    sudoku_info.enter_cell(column, row, option).unwrap();
+                    
+                    while self.continuation_strategy.apply(&mut sudoku_info)
+                        { }
+                    
+                    results.push(sudoku_info);
+                }
+
+                if results.len() == 0 {
+                    continue;
+                }
+
+                let mut results_iter = results.into_iter();
+                let first = results_iter.next().unwrap();
+                let union = results_iter.fold(first,
+                    |mut acc, x| {
+                        acc.union_assign(&x).unwrap();
+                        acc
+                    });
+                sudoku_info.intersect_assign(&union).unwrap();
+            }
+        }
+
+        sudoku_info != &before_state
+    }
+}
+
+// TODO BoundedCellsBacktrackingStrategy
+
+/// A strategy which does nothing. This is to be used in backtracking
+/// strategies to define that no further logic shall be applied after trying an
+/// option.
+#[derive(Clone)]
+pub struct NoStrategy;
+
+impl Strategy for NoStrategy {
+    fn apply(&self, _: &mut SudokuInfo<impl Constraint + Clone>) -> bool {
+        false
+    }
+}
+
 /// A [Strategy](trait.Strategy.html) which uses two strategies by first
 /// applying one and then the other on the output of the first one. If any
 /// child changed the state, this strategy is defined to have changed the state
@@ -809,6 +1006,90 @@ mod tests {
 
     use crate::{Sudoku, SudokuGrid};
     use crate::constraint::DefaultConstraint;
+
+    #[test]
+    fn sudoku_info_equality() {
+        let sudoku = Sudoku::parse("2x2;\
+             ,1, ,4,\
+             ,2,3, ,\
+             , , ,2,\
+             , , , ", DefaultConstraint).unwrap();
+        let mut si1 = SudokuInfo::from_sudoku(sudoku.clone());
+        let mut si2 = SudokuInfo::from_sudoku(sudoku);
+
+        assert!(si1 == si2);
+
+        si1.enter_cell_no_update(3, 1, 1).unwrap();
+        assert!(si1 != si2);
+        si2.enter_cell_no_update(3, 1, 1).unwrap();
+        assert!(si1 == si2);
+
+        si1.update();
+        assert!(si1 == si2);
+        si2.update();
+        assert!(si1 == si2);
+
+        si1.get_options_mut(0, 3).unwrap().remove(1).unwrap();
+        assert!(si1 != si2);
+    }
+    
+    fn get_different_sudoku_infos()
+            -> (SudokuInfo<DefaultConstraint>, SudokuInfo<DefaultConstraint>) {
+        let sudoku = Sudoku::parse("2x2;\
+             ,1, ,4,\
+             ,2,3, ,\
+             , , ,2,\
+             , , , ", DefaultConstraint).unwrap();
+        let mut si1 = SudokuInfo::from_sudoku(sudoku.clone());
+        let mut si2 = SudokuInfo::from_sudoku(sudoku);
+        
+        si1.enter_cell(2, 0, 2).unwrap();
+        si1.enter_cell(3, 1, 1).unwrap();
+        si2.enter_cell(3, 1, 1).unwrap();
+        
+        si1.get_options_mut(0, 3).unwrap().remove(1).unwrap();
+        si2.get_options_mut(0, 3).unwrap().remove(1).unwrap();
+        si2.get_options_mut(1, 3).unwrap().remove(3).unwrap();
+        
+        (si1, si2)
+    }
+
+    #[test]
+    fn sudoku_info_union() {
+        let (mut si1, si2) = get_different_sudoku_infos();
+
+        assert!(si1.union_assign(&si2).unwrap());
+
+        assert_eq!(None, si1.get_cell(2, 0).unwrap());
+        assert_eq!(Some(1), si1.get_cell(3, 1).unwrap());
+
+        assert!(!si1.get_options(0, 3).unwrap().contains(1));
+        assert!(si1.get_options(1, 3).unwrap().contains(3));
+    }
+
+    #[test]
+    fn sudoku_info_intersect() {
+        let (mut si1, si2) = get_different_sudoku_infos();
+
+        assert!(si1.intersect_assign(&si2).unwrap());
+
+        assert_eq!(Some(2), si1.get_cell(2, 0).unwrap());
+        assert_eq!(Some(1), si1.get_cell(3, 1).unwrap());
+
+        assert!(!si1.get_options(0, 3).unwrap().contains(1));
+        assert!(!si1.get_options(1, 3).unwrap().contains(3));
+    }
+
+    #[test]
+    fn sudoku_info_operation_err() {
+        let sudoku1 = Sudoku::parse("1x2;1,2,2,1", DefaultConstraint).unwrap();
+        let sudoku2 = Sudoku::parse("2x1;1,2,2,1", DefaultConstraint).unwrap();
+        let mut si1 = SudokuInfo::from_sudoku(sudoku1);
+        let si2 = SudokuInfo::from_sudoku(sudoku2);
+
+        assert_eq!(Err(SudokuError::InvalidDimensions), si1.union_assign(&si2));
+        assert_eq!(Err(SudokuError::InvalidDimensions), si1.intersect_assign(&si2));
+    }
 
     fn naked_single_strategy_solver() -> StrategicSolver<impl Strategy> {
         StrategicSolver::new(NakedSingleStrategy)
@@ -1004,4 +1285,7 @@ mod tests {
 
         assert_eq!(expected, solution);
     }
+
+    // TODO BoundedOptionsBacktrackingStrategy tests
+    // TODO BoundedCellsBacktrackingStrategy tests
 }
