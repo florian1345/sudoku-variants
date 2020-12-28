@@ -17,6 +17,7 @@ use std::collections::HashSet;
 pub struct SudokuInfo<C: Constraint + Clone> {
     sudoku: Sudoku<C>,
     cell_options: Vec<USizeSet>,
+    enqueued_cells: Vec<(usize, usize, usize)>,
     up_to_date: bool
 }
 
@@ -60,6 +61,7 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
         SudokuInfo {
             sudoku,
             cell_options,
+            enqueued_cells: Vec::new(),
             up_to_date: true
         }
     }
@@ -96,6 +98,54 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
         self.sudoku.grid().get_cell(column, row)
     }
 
+    /// Enqueues a number to be assigned to the content of the cell at the
+    /// specified position on the next update. If the cell is not empty at that
+    /// point, the old number will be overwritten.
+    ///
+    /// In contrast with
+    /// [enter_cell_no_update](SudokuInfo::enter_cell_no_update), this function
+    /// never enters the number into the cell right away, so when querying the
+    /// cell it will still look empty. This is done both for performance
+    /// reasons and to preserve semantics of only applying a strategy once for
+    /// strategies which may process the same cell more than once, which is
+    /// important for the bounded backtracking strategies. To ensure that the
+    /// state of this is up-to-date, i.e. the new cells are entered and the
+    /// options are adapted to accomodate for them, call
+    /// [invalidate](SudokuInfo::invalidate) after you are finished enqueueing
+    /// changes.
+    ///
+    /// # Arguments
+    ///
+    /// * `column`: The column (x-coordinate) of the assigned cell. Must be in
+    /// the range `[0, size[`.
+    /// * `row`: The row (y-coordinate) of the assigned cell. Must be in the
+    /// range `[0, size[`.
+    /// * `number`: The number to assign to the specified cell. Must be in the
+    /// range `[1, size]`.
+    ///
+    /// # Errors
+    ///
+    /// * `SudokuError::OutOfBounds` If either `column` or `row` are not in the
+    /// specified range.
+    /// * `SudokuError::InvalidNumber` If `number` is not in the specified
+    /// range.
+    pub fn enqueue_enter_cell(&mut self, column: usize, row: usize,
+            number: usize) -> SudokuResult<()> {
+        let size = self.sudoku.grid().size();
+
+        if column >= size || row >= size {
+            return Err(SudokuError::InvalidDimensions);
+        }
+
+        if number < 1 || number > size {
+            return Err(SudokuError::InvalidNumber);
+        }
+
+        self.enqueued_cells.push((column, row, number));
+        self.up_to_date = false;
+        Ok(())
+    }
+
     /// Sets the content of the cell at the specified position to the given
     /// number. If the cell was not empty, the old number will be overwritten.
     ///
@@ -123,6 +173,9 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
     pub fn enter_cell_no_update(&mut self, column: usize, row: usize,
             number: usize) -> SudokuResult<()> {
         self.sudoku.grid_mut().set_cell(column, row, number)?;
+        let options = self.get_options_mut(column, row).unwrap();
+        options.clear();
+        options.insert(number).unwrap();
         self.up_to_date = false;
         Ok(())
     }
@@ -152,7 +205,7 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
     /// range.
     pub fn enter_cell(&mut self, column: usize, row: usize, number: usize)
             -> SudokuResult<()> {
-        self.sudoku.grid_mut().set_cell(column, row, number)?;
+        self.enter_cell_no_update(column, row, number)?;
         self.update();
         Ok(())
     }
@@ -160,6 +213,12 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
     fn update(&mut self) {
         let size = self.size();
         let mut options_to_remove = Vec::new();
+        let enqueued_cells: Vec<(usize, usize, usize)> =
+            self.enqueued_cells.drain(..).collect();
+
+        for (column, row, number) in enqueued_cells {
+            self.enter_cell_no_update(column, row, number).unwrap();
+        }
 
         for row in 0..size {
             for column in 0..size {
@@ -714,17 +773,14 @@ impl Strategy for OnlyCellStrategy {
 
             for (number, location) in locations.into_iter().enumerate() {
                 if let Location::One(column, row) = location {
-                    sudoku_info.enter_cell_no_update(column, row, number)
+                    sudoku_info.enqueue_enter_cell(column, row, number)
                         .unwrap();
                     changed = true;
                 }
             }
-
-            // We must invalidate here since otherwise the strategy may try to
-            // fill multiple cells in a group with the same digit.
-            sudoku_info.invalidate();
         }
 
+        sudoku_info.invalidate();
         changed
     }
 }
@@ -890,10 +946,101 @@ impl<F: Fn(usize) -> usize> Strategy for TupleStrategy<F> {
 /// maximum) and tries all of them. It then uses a wrapped strategy to find
 /// deductions in all paths. If any of those deductions hold for all options,
 /// they are stored in the metadata.
+///
+/// As an example, consider the following situation.
+///
+/// ```text
+/// ╔═══╤═══╤═══╦═══╤═══╤═══╦═══╤═══╤═══╗
+/// ║ 1 │ A │ 2 ║ 3 │ 4 │ 5 ║ 6 │ B │ 7 ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║   │   │   ║   │   │   ║   │   │   ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║   │   │   ║   │   │   ║   │   │   ║
+/// ╠═══╪═══╪═══╬═══╪═══╪═══╬═══╪═══╪═══╣
+/// ║ 2 │ 3 │ C ║   │   │   ║   │ Z │   ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║ 4 │   │ 1 ║   │   │   ║   │   │   ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║ 5 │ 6 │ 7 ║   │   │   ║   │   │   ║
+/// ╠═══╪═══╪═══╬═══╪═══╪═══╬═══╪═══╪═══╣
+/// ║   │   │   ║   │   │   ║   │   │   ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║   │   │   ║   │   │   ║   │   │   ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║   │   │   ║   │   │   ║   │   │   ║
+/// ╚═══╧═══╧═══╩═══╧═══╧═══╩═══╧═══╧═══╝
+/// ```
+///
+/// In this case, if A is an 8, then B must be a 9 by the [OnlyCellStrategy],
+/// so Z cannot be a 9. If A is a 9, then C must be a 9 by the same strategy,
+/// and consequently Z cannot be a 9 aswell. So, this strategy with an options
+/// bound of at least 2 (since A can be 8 or 9), an [OnlyCellStrategy] as the
+/// continuation strategy, and at least 1 application, can conclude that Z
+/// cannot be a 9.
 #[derive(Clone)]
 pub struct BoundedOptionsBacktrackingStrategy<S: Strategy> {
     max_options: usize,
+    max_applications: Option<usize>,
     continuation_strategy: S
+}
+
+impl<S: Strategy> BoundedOptionsBacktrackingStrategy<S> {
+
+    /// Creates a new bounded options backtracking strategy where the number of
+    /// applications of the continuation strategy is limited.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_options`: The maximum number of options that may be present in a
+    /// cell for this strategy to consider all of them.
+    /// * `max_applications`: The maximum number of times the continuation
+    /// strategy may be applied for each considered option before no further
+    /// inference is done.
+    /// * `continuation_strategy`: The [Strategy] with which each considered
+    /// option is developed to find any inferences.
+    pub fn new_limited_applications(max_options: usize,
+            max_applications: usize, continuation_strategy: S)
+            -> BoundedOptionsBacktrackingStrategy<S> {
+        BoundedOptionsBacktrackingStrategy {
+            max_options,
+            max_applications: Some(max_applications),
+            continuation_strategy
+        }
+    }
+
+    /// Creates a new bounded options backtracking strategy where the number of
+    /// applications of the continuation strategy is *not* limited.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_options`: The maximum number of options that may be present in a
+    /// cell for this strategy to consider all of them.
+    /// * `continuation_strategy`: The [Strategy] with which each considered
+    /// option is developed to find any inferences.
+    pub fn new_unlimited_applications(max_options: usize,
+            continuation_strategy: S)
+            -> BoundedOptionsBacktrackingStrategy<S> {
+        BoundedOptionsBacktrackingStrategy {
+            max_options,
+            max_applications: None,
+            continuation_strategy
+        }
+    }
+
+    fn apply_continuation(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>) {
+        match self.max_applications {
+            None => {
+                while self.continuation_strategy.apply(sudoku_info) { }
+            },
+            Some(max) => {
+                for _ in 0..max {
+                    if !self.continuation_strategy.apply(sudoku_info) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl<S: Strategy> Strategy for BoundedOptionsBacktrackingStrategy<S> {
@@ -919,10 +1066,7 @@ impl<S: Strategy> Strategy for BoundedOptionsBacktrackingStrategy<S> {
                 for option in options.iter() {
                     let mut sudoku_info = sudoku_info.clone();
                     sudoku_info.enter_cell(column, row, option).unwrap();
-                    
-                    while self.continuation_strategy.apply(&mut sudoku_info)
-                        { }
-                    
+                    self.apply_continuation(&mut sudoku_info);
                     results.push(sudoku_info);
                 }
 
@@ -1283,6 +1427,87 @@ mod tests {
         assert_eq!(expected, solution);
     }
 
-    // TODO BoundedOptionsBacktrackingStrategy tests
+    #[test]
+    fn bounded_options_backtracking_deduces_impossible_option() {
+        let sudoku = Sudoku::parse("3x3;\
+            1, ,2,3,4,5,6, ,7,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+            2,3, , , , , , , ,\
+            4, ,1, , , , , , ,\
+            5,6,7, , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ", DefaultConstraint).unwrap();
+        let strategy =
+            BoundedOptionsBacktrackingStrategy::new_limited_applications(2, 1,
+                OnlyCellStrategy);
+        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku);
+        
+        assert!(strategy.apply(&mut sudoku_info));
+        assert!(!sudoku_info.get_options(7, 3).unwrap().contains(8));
+        assert!(!sudoku_info.get_options(7, 3).unwrap().contains(9));
+    }
+
+    #[test]
+    fn bounded_options_backtracking_respects_application_limit() {
+        let sudoku = Sudoku::parse("3x3;\
+            1, ,2,3,4,5,6, ,7,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+            2,1, , , , , , , ,\
+            3, ,6, , , , , , ,\
+            4,5,7, , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ", DefaultConstraint).unwrap();
+        let weak_strategy =
+            BoundedOptionsBacktrackingStrategy::new_limited_applications(2, 1,
+                NakedSingleStrategy);
+        let strong_strategy =
+            BoundedOptionsBacktrackingStrategy::new_limited_applications(2, 2,
+                NakedSingleStrategy);
+        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku.clone());
+
+        assert!(weak_strategy.apply(&mut sudoku_info));
+        assert!(sudoku_info.get_options(7, 3).unwrap().contains(8));
+        assert!(sudoku_info.get_options(7, 3).unwrap().contains(9));
+        
+        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku);
+
+        assert!(strong_strategy.apply(&mut sudoku_info));
+        assert!(!sudoku_info.get_options(7, 3).unwrap().contains(8));
+        assert!(!sudoku_info.get_options(7, 3).unwrap().contains(9));
+    }
+
+    #[test]
+    fn bounded_options_backtracking_respects_option_limit() {
+        let sudoku = Sudoku::parse("3x3;\
+            1, ,2,3, ,4,5, ,6,\
+             , , , , , , , , ,\
+             , , ,7, , ,8, , ,\
+            2, , ,3, , , , , ,\
+            3, ,1,4, ,5, , , ,\
+            4, ,5,2, ,1, , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ", DefaultConstraint).unwrap();
+        let weak_strategy =
+            BoundedOptionsBacktrackingStrategy::new_unlimited_applications(2,
+                OnlyCellStrategy);
+        let strong_strategy =
+            BoundedOptionsBacktrackingStrategy::new_unlimited_applications(3,
+                OnlyCellStrategy);
+        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku.clone());
+        
+        assert!(weak_strategy.apply(&mut sudoku_info));
+        assert!(sudoku_info.get_options(7, 3).unwrap().contains(9));
+                
+        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku);
+        
+        assert!(strong_strategy.apply(&mut sudoku_info));
+        assert!(!sudoku_info.get_options(7, 3).unwrap().contains(9));
+    }
+
     // TODO BoundedCellsBacktrackingStrategy tests
 }
