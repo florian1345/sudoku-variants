@@ -1021,20 +1021,12 @@ mod tests {
             BoundedCellsBacktrackingStrategy::new_limited_applications(3, 1,
                 OnlyCellStrategy);
         let mut sudoku_info = SudokuInfo::from_sudoku(sudoku.clone());
-     
-        println!("");
-        println!("WEAK STRATEGY");
-        println!("");
 
         assert!(weak_strategy.apply(&mut sudoku_info));
         assert!(sudoku_info.get_options(2, 6).unwrap().contains(5));
-             
+
         let mut sudoku_info = SudokuInfo::from_sudoku(sudoku);
-     
-        println!("");
-        println!("STRONG STRATEGY");
-        println!("");
-     
+
         assert!(strong_strategy.apply(&mut sudoku_info));
         assert!(!sudoku_info.get_options(2, 6).unwrap().contains(5));
     }
