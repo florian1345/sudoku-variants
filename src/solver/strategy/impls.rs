@@ -6,6 +6,25 @@ use std::collections::HashSet;
 
 /// A [Strategy] which detects naked singles, that is, cells which only have
 /// one possible value, and enters them into the Sudoku.
+///
+/// As a small example, take a look at the following grid:
+///
+/// ```text
+/// ╔═══╤═══╦═══╤═══╗
+/// ║ X │   ║   │ 2 ║
+/// ╟───┼───╫───┼───╢
+/// ║   │ 1 ║   │   ║
+/// ╠═══╪═══╬═══╪═══╣
+/// ║   │   ║   │   ║
+/// ╟───┼───╫───┼───╢
+/// ║ 3 │   ║   │   ║
+/// ╚═══╧═══╩═══╧═══╝
+/// ```
+///
+/// The cell marked with X cannot be a 1 because of the 1 in its block, nor a 2
+/// because of the 2 in its row, and also cannot be a 3 because of the 3 in its
+/// column. Consequently, it can only be a 4. This would be detected by this
+/// strategy.
 #[derive(Clone)]
 pub struct NakedSingleStrategy;
 
@@ -366,28 +385,51 @@ impl<S: Strategy> BoundedOptionsBacktrackingStrategy<S> {
             continuation_strategy
         }
     }
+}
 
-    fn apply_continuation(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>) {
-        match self.max_applications {
-            None => {
-                while self.continuation_strategy.apply(sudoku_info) { }
-            },
-            Some(max) => {
-                for _ in 0..max {
-                    if !self.continuation_strategy.apply(sudoku_info) {
-                        break;
-                    }
+/// Applies `continuation_strategy` to `sudoku_info` until the fixed point is
+/// reached, but at most `max_applications` times, if it is given.
+fn apply_continuation(max_applications: Option<usize>,
+        continuation_strategy: &impl Strategy,
+        sudoku_info: &mut SudokuInfo<impl Constraint + Clone>) {
+    match max_applications {
+        None => {
+            while continuation_strategy.apply(sudoku_info) { }
+        },
+        Some(max) => {
+            for _ in 0..max {
+                if !continuation_strategy.apply(sudoku_info) {
+                    break;
                 }
             }
         }
     }
 }
 
+/// Makes deductions in `sudoku_info` under the assumption that one of the
+/// sudoku infos in `results` has to be true - i.e. it contains a complete case
+/// distinction. This function returns `true` if `sudoku_info` changed.
+fn collapse_results<C: Constraint + Clone>(sudoku_info: &mut SudokuInfo<C>,
+        results: Vec<SudokuInfo<C>>) -> bool {
+    if results.len() == 0 {
+        return false;
+    }
+
+    let mut results_iter = results.into_iter();
+    let first = results_iter.next().unwrap();
+    let union = results_iter.fold(first,
+        |mut acc, x| {
+            acc.union_assign(&x).unwrap();
+            acc
+        });
+    sudoku_info.intersect_assign(&union).unwrap()
+}
+
 impl<S: Strategy> Strategy for BoundedOptionsBacktrackingStrategy<S> {
     fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
             -> bool {
         let size = sudoku_info.size();
-        let before_state = sudoku_info.clone();
+        let mut changed = false;
 
         for column in 0..size {
             for row in 0..size {
@@ -406,30 +448,169 @@ impl<S: Strategy> Strategy for BoundedOptionsBacktrackingStrategy<S> {
                 for option in options.iter() {
                     let mut sudoku_info = sudoku_info.clone();
                     sudoku_info.enter_cell(column, row, option).unwrap();
-                    self.apply_continuation(&mut sudoku_info);
+                    apply_continuation(self.max_applications,
+                        &self.continuation_strategy, &mut sudoku_info);
                     results.push(sudoku_info);
                 }
 
-                if results.len() == 0 {
-                    continue;
-                }
-
-                let mut results_iter = results.into_iter();
-                let first = results_iter.next().unwrap();
-                let union = results_iter.fold(first,
-                    |mut acc, x| {
-                        acc.union_assign(&x).unwrap();
-                        acc
-                    });
-                sudoku_info.intersect_assign(&union).unwrap();
+                changed |= collapse_results(sudoku_info, results);
             }
         }
 
-        sudoku_info != &before_state
+        changed
     }
 }
 
-// TODO BoundedCellsBacktrackingStrategy
+/// A [Strategy] which looks for groups in which some number can only occur in
+/// a limited number of cells (up to a specified maximum) and tries all of
+/// them. It then uses a wrapped strategy to find deductions in all paths. If
+/// any of those deductions hold for all options, they are stored in the
+/// metadata.
+///
+/// As an example, consider the following situation:
+///
+/// ```text
+/// ╔═══╤═══╤═══╦═══╤═══╤═══╦═══╤═══╤═══╗
+/// ║   │   │   ║   │ 5 │   ║   │   │   ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║ 1 │ 2 │ 3 ║   │   │   ║   │   │   ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║ 4 │   │   ║   │   │   ║ X │   │   ║
+/// ╠═══╪═══╪═══╬═══╪═══╪═══╬═══╪═══╪═══╣
+/// ║ 2 │   │   ║   │   │   ║ X │   │   ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║   │   │   ║   │   │ 5 ║   │   │   ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║ 3 │ 1 │ 4 ║   │   │   ║   │   │   ║
+/// ╠═══╪═══╪═══╬═══╪═══╪═══╬═══╪═══╪═══╣
+/// ║   │ Y │ Y ║   │   │   ║   │   │   ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║   │ Y │ Y ║   │   │   ║   │   │   ║
+/// ╟───┼───┼───╫───┼───┼───╫───┼───┼───╢
+/// ║   │ Y │ Y ║   │   │   ║   │   │   ║
+/// ╚═══╧═══╧═══╩═══╧═══╧═══╩═══╧═══╧═══╝
+/// ```
+///
+/// In this configuration, a bounded cells backtracking strategy without any
+/// wrapped stratey (i.e. a [NoStrategy]) with a maximum of 2 cells to consider
+/// would find that the cells marked with X cannot be a 5. This is because both
+/// in the top-left and the top-central box, there are two places for 5s each,
+/// both in the same rows, thus excluding a 5 from the X-cells. Furthermore, if
+/// an [OnlyCellStrategy] with at least 1 application is used as the
+/// continuation strategy, the bounded cells backtracking strategy would be
+/// able to deduce that fives must always be in columns 2 and 3 in the top-left
+/// and top-central box and thus all cells marked with Y cannot be a 5.
+///
+/// Note that this strategy contains some common strategies with different
+/// names. For example a bounded cells backtracking strategy with a limit of 2
+/// cells and an [OnlyCellStrategy] with 1 application would find X-Wings.
+#[derive(Clone)]
+pub struct BoundedCellsBacktrackingStrategy<S: Strategy> {
+    max_cells: usize,
+    max_applications: Option<usize>,
+    continuation_strategy: S
+}
+
+impl<S: Strategy> BoundedCellsBacktrackingStrategy<S> {
+
+    /// Creates a new bounded cells backtracking strategy where the number of
+    /// applications of the continuation strategy is limited.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_cells`: The maximum number of cells in a group in which a number
+    /// can be for this strategy to consider all of them. 
+    /// * `max_applications`: The maximum number of times the continuation
+    /// strategy may be applied for each considered cell before no further
+    /// inference is done.
+    /// * `continuation_strategy`: The [Strategy] with which each considered
+    /// cell is developed to find any inferences.
+    pub fn new_limited_applications(max_cells: usize,
+            max_applications: usize, continuation_strategy: S)
+            -> BoundedCellsBacktrackingStrategy<S> {
+        BoundedCellsBacktrackingStrategy {
+            max_cells,
+            max_applications: Some(max_applications),
+            continuation_strategy
+        }
+    }
+
+    /// Creates a new bounded cells backtracking strategy where the number of
+    /// applications of the continuation strategy is *not* limited.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_cells`: The maximum number of cells in a group in which a number
+    /// can be for this strategy to consider all of them. 
+    /// * `continuation_strategy`: The [Strategy] with which each considered
+    /// cell is developed to find any inferences.
+    pub fn new_unlimited_applications(max_cells: usize,
+            continuation_strategy: S)
+            -> BoundedCellsBacktrackingStrategy<S> {
+        BoundedCellsBacktrackingStrategy {
+            max_cells,
+            max_applications: None,
+            continuation_strategy
+        }
+    }
+}
+
+impl<S: Strategy> Strategy for BoundedCellsBacktrackingStrategy<S> {
+    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
+            -> bool {
+        let size = sudoku_info.size();
+        let mut changed = false;
+        let grid = sudoku_info.sudoku().grid();
+        let groups = sudoku_info.sudoku().constraint().get_groups(grid);
+
+        for group in groups {
+            // We must assume that the group contains all numbers for the case
+            // distinction to be valid.
+            if group.len() < size {
+                continue;
+            }
+
+            let mut number_locations: Vec<Vec<(usize, usize)>> =
+                vec![Vec::new(); size + 1];
+
+            for (column, row) in group {
+                if let Some(_) = sudoku_info.get_cell(column, row).unwrap() {
+                    continue;
+                }
+
+                let options = sudoku_info.get_options(column, row).unwrap();
+
+                for option in options.iter() {
+                    number_locations[option].push((column, row));
+                }
+            }
+
+            let number_locations_iter = number_locations.into_iter().skip(1);
+
+            for (number, locations) in number_locations_iter.enumerate() {
+                let number = number + 1;
+
+                if locations.len() == 0 || locations.len() > self.max_cells {
+                    continue;
+                }
+
+                let mut results = Vec::new();
+
+                for (column, row) in locations {
+                    let mut sudoku_info = sudoku_info.clone();
+                    sudoku_info.enter_cell(column, row, number).unwrap();
+                    apply_continuation(self.max_applications,
+                        &self.continuation_strategy, &mut sudoku_info);
+                    results.push(sudoku_info);
+                }
+
+                changed |= collapse_results(sudoku_info, results);
+            }
+        }
+
+        changed
+    }
+}
 
 /// A [Strategy]] which does nothing. This is to be used in backtracking
 /// strategies to define that no further logic shall be applied after trying an
@@ -768,5 +949,93 @@ mod tests {
         assert!(!sudoku_info.get_options(7, 3).unwrap().contains(9));
     }
 
-    // TODO BoundedCellsBacktrackingStrategy tests
+    #[test]
+    fn bounded_cells_backtracking_detects_impossible_option() {
+        let sudoku = Sudoku::parse("3x3;\
+             , , , ,5, , , , ,\
+            1,2,3, , , , , , ,\
+            4, , , , , , , , ,\
+            2, , , , , , , , ,\
+            3,1,4, , , , , , ,\
+             , , , , ,5, , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ", DefaultConstraint).unwrap();
+        let strategy =
+            BoundedCellsBacktrackingStrategy::new_limited_applications(2, 0,
+                NoStrategy);
+        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku);
+
+        assert!(strategy.apply(&mut sudoku_info));
+        assert!(!sudoku_info.get_options(6, 2).unwrap().contains(5));
+        assert!(!sudoku_info.get_options(6, 3).unwrap().contains(5));
+    }
+
+    #[test]
+    fn bounded_cells_backtracking_respects_application_limit() {
+        let sudoku = Sudoku::parse("3x3;\
+             , , , ,5, , , , ,\
+            1,2,3, , , , , , ,\
+            4, , , , , , , , ,\
+            2, , , , , , , , ,\
+            3,1,4, , , , , , ,\
+             , , , , ,5, , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ", DefaultConstraint).unwrap();
+        let weak_strategy =
+            BoundedCellsBacktrackingStrategy::new_limited_applications(2, 0,
+                OnlyCellStrategy);
+        let strong_strategy =
+            BoundedCellsBacktrackingStrategy::new_limited_applications(2, 1,
+                OnlyCellStrategy);
+        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku.clone());
+
+        assert!(weak_strategy.apply(&mut sudoku_info));
+        assert!(sudoku_info.get_options(1, 6).unwrap().contains(5));
+        assert!(sudoku_info.get_options(2, 6).unwrap().contains(5));
+        
+        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku);
+
+        assert!(strong_strategy.apply(&mut sudoku_info));
+        assert!(!sudoku_info.get_options(1, 6).unwrap().contains(5));
+        assert!(!sudoku_info.get_options(2, 6).unwrap().contains(5));
+    }
+
+    #[test]
+    fn bounded_cells_backtracking_respects_cell_limit() {
+        let sudoku = Sudoku::parse("3x3;\
+             , , , ,5, , , , ,\
+            1,2,3, , , , , , ,\
+            4, , , , , , , , ,\
+            2,1, , , , , , , ,\
+            3, , , , , , , , ,\
+             , , , , ,5, , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ", DefaultConstraint).unwrap();
+        let weak_strategy =
+            BoundedCellsBacktrackingStrategy::new_limited_applications(2, 1,
+                OnlyCellStrategy);
+        let strong_strategy =
+            BoundedCellsBacktrackingStrategy::new_limited_applications(3, 1,
+                OnlyCellStrategy);
+        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku.clone());
+     
+        println!("");
+        println!("WEAK STRATEGY");
+        println!("");
+
+        assert!(weak_strategy.apply(&mut sudoku_info));
+        assert!(sudoku_info.get_options(2, 6).unwrap().contains(5));
+             
+        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku);
+     
+        println!("");
+        println!("STRONG STRATEGY");
+        println!("");
+     
+        assert!(strong_strategy.apply(&mut sudoku_info));
+        assert!(!sudoku_info.get_options(2, 6).unwrap().contains(5));
+    }
 }
