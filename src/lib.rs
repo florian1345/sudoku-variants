@@ -151,6 +151,15 @@
 //! `Solution::Impossible` and if there are multiple solutions, it will reutrn
 //! `Solution::Ambiguous`.
 //!
+//! ## Performance improvements
+//!
+//! Using pure backtracking can be an issue regarding performance. It is
+//! possible to use heuristics, so-called
+//! [Strategies][crate::solver::strategy::Strategy] that use logic to fill some
+//! cells or remove some optinos. This can be much faster than pure
+//! backtracking, but some experimentation is required. See the
+//! [strategy](crate::solver::strategy) module for further information.
+//!
 //! # Generating Sudoku
 //!
 //! Probably the most interesting feature of this crate is the generation of
@@ -191,6 +200,16 @@
 //! };
 //! assert!(unique);
 //! ```
+//!
+//! ## Defining a difficulty
+//!
+//! The above example removes digits as long as the resulting Sudoku is still
+//! uniquely solveable. This may result in some very difficult Sudoku, since it
+//! provides no guarantees as to *how* the Sudoku can be solved. To generate
+//! less difficult Sudoku, you can provide a less powerful
+//! [Solver](crate::solver::Solver), which has to be able to solve the reduced
+//! Sudoku. See the [strategy](crate::solver::strategy) module for further
+//! information.
 //!
 //! # Note regarding performance
 //!

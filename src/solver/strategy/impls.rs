@@ -616,7 +616,7 @@ impl<S: Strategy> Strategy for BoundedCellsBacktrackingStrategy<S> {
     }
 }
 
-/// A [Strategy]] which does nothing. This is to be used in backtracking
+/// A [Strategy] which does nothing. This is to be used in backtracking
 /// strategies to define that no further logic shall be applied after trying an
 /// option.
 #[derive(Clone)]

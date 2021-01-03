@@ -11,7 +11,7 @@
 //! information.
 //!
 //! `sudoku-variants` offers a small library of pre-defined strategies you can
-//! use. See the documentation of those for further details.
+//! use. See the [impls] module for further details.
 //!
 //! # Defining difficulties using strategies
 //!
@@ -55,7 +55,7 @@
 //! any other option. This is a subset of the [NakedSingleStrategy].
 //!
 //! To do this, we must implement the [Strategy] trait, which only requires the
-//! [Strategy.apply] method. This method gets an instance of a [SudokuInfo]
+//! [Strategy::apply] method. This method gets an instance of a [SudokuInfo]
 //! struct for the Sudoku at hand. We must then implement our logic to make
 //! deductions and if we can find something, that is, we can write in a digit
 //! or remove an option, we can modify the sudoku info. If we changed
