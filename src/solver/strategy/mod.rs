@@ -1,3 +1,106 @@
+//! This module is about strategic solving of Sudoku. In contrast to
+//! backtracking, this is often faster, but cannot solve all Sudoku. However,
+//! strategic backtracking is also possible, which still uses backtracking, but
+//! also uses strategies to reduce the search space. This is solely a
+//! performance optimization and offers no functional advantage over pure
+//! backtracking. For more information, view the [StrategicBacktrackingSolver].
+//!
+//! This module contains the definition of the [Strategy] trait, which all
+//! strategies must implement, as well as the [SudokuInfo] struct, which wraps
+//! metadata about Sudoku that can be used by strategies to exchange
+//! information.
+//!
+//! `sudoku-variants` offers a small library of pre-defined strategies you can
+//! use. See the documentation of those for further details.
+//!
+//! # Defining difficulties using strategies
+//!
+//! Besides a performance optimization for backtracking, strategies also have
+//! the use of defining a difficulty level for generated Sudoku. This can be
+//! done by instantiating the [Reducer](crate::generator::Reducer) with a
+//! [StrategicSolver]. The resulting Sudoku is then guaranteed to be solveable
+//! by the provided strategy. As an example consider the following code, which
+//! generates a classic Sudoku that can be solved by solely looking for naked
+//! singles (see [NakedSingleStrategy]).
+//!
+//! ```
+//! use sudoku_variants::constraint::DefaultConstraint;
+//! use sudoku_variants::generator::{Generator, Reducer};
+//! use sudoku_variants::solver::{Solution, Solver};
+//! use sudoku_variants::solver::strategy::{
+//!     NakedSingleStrategy,
+//!     StrategicSolver
+//! };
+//!
+//! // Generate the full Sudoku
+//! let mut generator = Generator::new_default();
+//! let mut sudoku = generator.generate(3, 3, DefaultConstraint).unwrap();
+//! let expected_solution = sudoku.grid().clone();
+//!
+//! // Define the difficulty level by providing a not-so-powerful solver
+//! let solver = StrategicSolver::new(NakedSingleStrategy);
+//!
+//! // Reduce the Sudoku using the solver
+//! let mut reducer = Reducer::new(solver.clone(), rand::thread_rng());
+//! reducer.reduce(&mut sudoku);
+//!
+//! // Test that the solver can in fact solve the Sudoku
+//! let actual_solution = solver.solve(&sudoku);
+//! assert_eq!(Solution::Unique(expected_solution), actual_solution);
+//! ```
+//!
+//! # Implementing a custom strategy
+//!
+//! As an example let's define a strategy that puts a 1 in every cell without
+//! any other option. This is a subset of the [NakedSingleStrategy].
+//!
+//! To do this, we must implement the [Strategy] trait, which only requires the
+//! [Strategy.apply] method. This method gets an instance of a [SudokuInfo]
+//! struct for the Sudoku at hand. We must then implement our logic to make
+//! deductions and if we can find something, that is, we can write in a digit
+//! or remove an option, we can modify the sudoku info. If we changed
+//! something, we must return true, and false otherwise. This indicates to the
+//! solvers whether it is useful to apply this strategy or other strategies
+//! again, since we may find something new.
+//!
+//! In our case, we can implement this method as follows:
+//!
+//! ```
+//! use sudoku_variants::constraint::Constraint;
+//! use sudoku_variants::solver::strategy::{Strategy, SudokuInfo};
+//!
+//! struct NakedOneStrategy;
+//!
+//! impl Strategy for NakedOneStrategy {
+//!     fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
+//!             -> bool {
+//!         let size = sudoku_info.sudoku().grid().size();
+//!         let mut changed = false;
+//!
+//!         // We must iterate over every cell.
+//!         for row in 0..size {
+//!             for column in 0..size {
+//!                 // The SudokuInfo struct stores which digits could go into
+//!                 // each cell. We can get that information with get_options.
+//!                 let options =
+//!                     sudoku_info.get_options(column, row).unwrap();
+//!
+//!                 if options.len() == 1 && options.contains(1) {
+//!                     // Only a 1 can go into this cell! We found something!
+//!                     // We batch all changes using enter_cell_no_update for
+//!                     // performance reasons.
+//!                     sudoku_info.enter_cell_no_update(column, row, 1)
+//!                         .unwrap();
+//!                     changed = true;
+//!                 }
+//!             }
+//!         }
+//!
+//!         changed
+//!     }
+//! }
+//! ```
+
 use crate::Sudoku;
 use crate::constraint::Constraint;
 use crate::error::{SudokuError, SudokuResult};
@@ -514,7 +617,8 @@ pub trait Strategy {
     ///
     /// This method shall return `true` if and only if something has changed,
     /// that is, a digit has been entered or an option has been removed.
-    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>) -> bool;
+    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
+        -> bool;
 }
 
 #[cfg(test)]

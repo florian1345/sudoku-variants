@@ -1,3 +1,7 @@
+//! This module contains utility functionality needed for this crate. Most
+//! prominently, it contains the definition of the [USizeSet] used for storing
+//! cell options for strategies.
+
 use std::mem;
 use std::ops::{
     BitAnd,
@@ -525,6 +529,23 @@ impl USizeSet {
     }
 }
 
+/// Creates a new [USizeSet] that contains the specified elements. First, the
+/// minimum and maximum values must be specified. Then, after a semicolon, a
+/// comma-separated list of the contained values must be provided. For empty
+/// sets, [USizeSet.new()] can be used.
+///
+/// An example usage of this macro looks as follows:
+///
+/// ```
+/// use sudoku_variants::set;
+/// use sudoku_variants::util::USizeSet;
+///
+/// let set = set!(1, 5; 2, 4);
+/// assert_eq!(1, set.min());
+/// assert_eq!(5, set.max());
+/// assert!(set.contains(2));
+/// assert!(!set.contains(3));
+/// ```
 #[macro_export]
 macro_rules! set {
     ($set:expr; $e:expr) => {

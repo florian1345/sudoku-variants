@@ -1,3 +1,19 @@
+// Code lints
+
+#![warn(trivial_casts)]
+#![warn(trivial_numeric_casts)]
+#![warn(unreachable_pub)]
+#![warn(unused_import_braces)]
+#![warn(unused_lifetimes)]
+#![warn(unused_qualifications)]
+
+// Doc lints
+
+#![warn(broken_intra_doc_links)]
+#![warn(missing_docs)]
+#![warn(missing_crate_level_docs)]
+#![warn(invalid_codeblock_attributes)]
+
 //! This crate implements an easy-to-understand and flexible Sudoku engine. It
 //! supports the following key features:
 //!
@@ -377,7 +393,7 @@ impl SudokuGrid {
         }
 
         let size = block_width * block_height;
-        let cells = vec![Option::None; size * size];
+        let cells = vec![None; size * size];
 
         Ok(SudokuGrid {
             block_width,

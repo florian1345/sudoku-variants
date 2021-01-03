@@ -1,3 +1,9 @@
+//! This module defines different [Solver]s related to strategies, in
+//! particular the partial [StrategicSolver] and the perfect
+//! [StrategicBacktrackingSolver]. All of them are re-exported in
+//! [crate::solver::strategy], so you should not have to `use` anything from
+//! this module directly.
+
 use crate::Sudoku;
 use crate::constraint::Constraint;
 use crate::solver::{Solution, Solver};

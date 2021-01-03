@@ -1,3 +1,7 @@
+//! This module contains all pre-defined strategies provided by this crate. All
+//! of them are re-exported in [crate::solver::strategy], so you should not
+//! have to `use` anything from this module directly.
+
 use crate::constraint::Constraint;
 use crate::solver::strategy::{Strategy, SudokuInfo};
 use crate::util::USizeSet;
