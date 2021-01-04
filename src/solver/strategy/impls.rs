@@ -780,22 +780,33 @@ mod tests {
         assert_eq!(expected, solution);
     }
 
+    fn apply<C: Constraint + Clone, S: Strategy>(strategy: S,
+            sudoku_info: &mut SudokuInfo<C>, apply_once: bool) {
+        while strategy.apply(sudoku_info) {
+            if apply_once {
+                break;
+            }
+        }
+    }
+
+    /// Tests that the `weak_strategy` cannot find deductions that make `test`
+    /// true, but `strong_strategy` can. Also asserts that the resulting Sudoku
+    /// is correct.
     fn test_strategy_stronger_and_sound<C, W, S>(sudoku: Sudoku<C>,
-        weak_strategy: W, strong_strategy: S, test_column: usize,
-        test_row: usize, test_number: usize)
+        weak_strategy: W, strong_strategy: S, apply_once: bool,
+        test: impl Fn(&SudokuInfo<C>) -> bool)
     where
         C: Constraint + Clone,
         W: Strategy,
         S: Strategy
     {
+        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku.clone());
+        apply(weak_strategy, &mut sudoku_info, apply_once);
+        assert!(!test(&sudoku_info));
+
         let mut sudoku_info = SudokuInfo::from_sudoku(sudoku);
-
-        while weak_strategy.apply(&mut sudoku_info) { }
-        assert_eq!(None, sudoku_info.get_cell(test_column, test_row).unwrap());
-
-        while strong_strategy.apply(&mut sudoku_info) { }
-        assert_eq!(Some(test_number),
-            sudoku_info.get_cell(test_column, test_row).unwrap());
+        apply(strong_strategy, &mut sudoku_info, apply_once);
+        assert!(test(&sudoku_info));
 
         assert!(sudoku_info.sudoku().is_valid());
     }
@@ -822,7 +833,7 @@ mod tests {
             TupleStrategy::new(|_| 2), NakedSingleStrategy);
         
         test_strategy_stronger_and_sound(sudoku, weak_strategy,
-            strong_strategy, 2, 2, 6);
+            strong_strategy, false, |s| s.get_cell(2, 2).unwrap() == Some(6));
     }
 
     #[test]
@@ -847,7 +858,7 @@ mod tests {
             TupleStrategy::new(|_| 3), NakedSingleStrategy);
         
         test_strategy_stronger_and_sound(sudoku, weak_strategy,
-            strong_strategy, 2, 2, 6);
+            strong_strategy, false, |s| s.get_cell(2, 2).unwrap() == Some(6));
     }
 
     #[test]
@@ -891,6 +902,11 @@ mod tests {
         assert!(!sudoku_info.get_options(7, 3).unwrap().contains(9));
     }
 
+    fn has_option<C: Constraint + Clone>(sudoku_info: &SudokuInfo<C>,
+            column: usize, row: usize, option: usize) -> bool {
+        sudoku_info.get_options(column, row).unwrap().contains(option)
+    }
+
     #[test]
     fn bounded_options_backtracking_respects_application_limit() {
         let sudoku = Sudoku::parse("3x3;\
@@ -909,17 +925,9 @@ mod tests {
         let strong_strategy =
             BoundedOptionsBacktrackingStrategy::new(|_| 2, |_| Some(2),
                 NakedSingleStrategy);
-        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku.clone());
-
-        assert!(weak_strategy.apply(&mut sudoku_info));
-        assert!(sudoku_info.get_options(7, 3).unwrap().contains(8));
-        assert!(sudoku_info.get_options(7, 3).unwrap().contains(9));
-        
-        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku);
-
-        assert!(strong_strategy.apply(&mut sudoku_info));
-        assert!(!sudoku_info.get_options(7, 3).unwrap().contains(8));
-        assert!(!sudoku_info.get_options(7, 3).unwrap().contains(9));
+        test_strategy_stronger_and_sound(sudoku, weak_strategy,
+            strong_strategy, true, |s|
+                !has_option(s, 7, 3, 9) && !has_option(s, 7, 3, 9))
     }
 
     #[test]
@@ -928,9 +936,9 @@ mod tests {
             1, ,2,3, ,4,5, ,6,\
              , , , , , , , , ,\
              , , ,7, , ,8, , ,\
-            2, , ,3, , , , , ,\
+            2, , ,1, , , , , ,\
             3, ,1,4, ,5, , , ,\
-            4, ,5,2, ,1, , , ,\
+            4, ,5,2, ,3, , , ,\
              , , , , , , , , ,\
              , , , , , , , , ,\
              , , , , , , , , ", DefaultConstraint).unwrap();
@@ -940,15 +948,8 @@ mod tests {
         let strong_strategy =
             BoundedOptionsBacktrackingStrategy::new(|_| 3, |_| None,
                 OnlyCellStrategy);
-        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku.clone());
-        
-        assert!(weak_strategy.apply(&mut sudoku_info));
-        assert!(sudoku_info.get_options(7, 3).unwrap().contains(9));
-                
-        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku);
-        
-        assert!(strong_strategy.apply(&mut sudoku_info));
-        assert!(!sudoku_info.get_options(7, 3).unwrap().contains(9));
+        test_strategy_stronger_and_sound(sudoku, weak_strategy,
+            strong_strategy, true, |s| !has_option(s, 7, 3, 9));
     }
 
     #[test]
@@ -991,17 +992,9 @@ mod tests {
         let strong_strategy =
             BoundedCellsBacktrackingStrategy::new(|_| 2, |_| Some(1),
                 OnlyCellStrategy);
-        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku.clone());
-
-        assert!(weak_strategy.apply(&mut sudoku_info));
-        assert!(sudoku_info.get_options(1, 6).unwrap().contains(5));
-        assert!(sudoku_info.get_options(2, 6).unwrap().contains(5));
-        
-        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku);
-
-        assert!(strong_strategy.apply(&mut sudoku_info));
-        assert!(!sudoku_info.get_options(1, 6).unwrap().contains(5));
-        assert!(!sudoku_info.get_options(2, 6).unwrap().contains(5));
+        test_strategy_stronger_and_sound(sudoku, weak_strategy,
+            strong_strategy, true, |s|
+                !has_option(s, 1, 6, 5) && !has_option(s, 2, 6, 5));
     }
 
     #[test]
@@ -1022,14 +1015,7 @@ mod tests {
         let strong_strategy =
             BoundedCellsBacktrackingStrategy::new(|_| 3, |_| Some(1),
                 OnlyCellStrategy);
-        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku.clone());
-
-        assert!(weak_strategy.apply(&mut sudoku_info));
-        assert!(sudoku_info.get_options(2, 6).unwrap().contains(5));
-
-        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku);
-
-        assert!(strong_strategy.apply(&mut sudoku_info));
-        assert!(!sudoku_info.get_options(2, 6).unwrap().contains(5));
+        test_strategy_stronger_and_sound(sudoku, weak_strategy,
+            strong_strategy, true, |s| !has_option(s, 2, 6, 5));
     }
 }
