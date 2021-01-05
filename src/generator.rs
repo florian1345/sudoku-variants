@@ -32,7 +32,7 @@ fn shuffle<T>(rng: &mut impl Rng, values: impl Iterator<Item = T>) -> Vec<T> {
     let len = vec.len();
 
     for i in 0..(len - 1) {
-        let j = rng.gen_range(i, len);
+        let j = rng.gen_range(i..len);
         vec.swap(i, j);
     }
 
