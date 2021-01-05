@@ -668,117 +668,9 @@ mod tests {
 
     use super::*;
 
-    use crate::{Sudoku, SudokuGrid};
+    use crate::Sudoku;
     use crate::constraint::DefaultConstraint;
-    use crate::solver::{Solution, Solver};
     use crate::solver::strategy::SudokuInfo;
-    use crate::solver::strategy::solvers::*;
-
-    fn naked_single_strategy_solver() -> StrategicSolver<impl Strategy> {
-        StrategicSolver::new(NakedSingleStrategy)
-    }
-
-    fn only_cell_strategy_solver() -> StrategicSolver<impl Strategy> {
-        StrategicSolver::new(OnlyCellStrategy)
-    }
-
-    fn difficult_sudoku() -> Sudoku<DefaultConstraint> {
-        // This Sudoku is taken from the World Puzzle Federation Sudoku GP 2020
-        // Round 5 Puzzle 5
-        // Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2020/2020_SudokuRound5.pdf
-        // Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2020/2020_SudokuRound5_SB.pdf
-        // The naked single strategy is insufficient to solve this puzzle.
-
-        Sudoku::parse("3x3;\
-             ,5, ,3, , , ,7, ,\
-            1, , , ,2, ,8, , ,\
-             ,2, ,4, ,9, , , ,\
-             , ,3,1, , ,7, ,6,\
-             ,4, , ,6, , ,5, ,\
-            5, ,6, , ,3,4, , ,\
-             , , ,8, ,2, ,3, ,\
-             , ,7, ,9, , , ,2,\
-             ,6, , , ,1, ,8, ", DefaultConstraint).unwrap()
-    }
-
-    #[test]
-    fn naked_single_strategy_solves_uniquely() {
-        let sudoku = Sudoku::parse("3x3;\
-             , ,1, , ,7,3,6, ,\
-            7,2, , ,8, ,5, ,9,\
-             ,8, , ,3,1, , , ,\
-             , , ,6,7, , ,3,5,\
-            9, ,5,8, , , ,7, ,\
-            2,6, , ,1, , , ,4,\
-            3, , ,1,5, , ,4,6,\
-             ,7,4, , ,3, ,5,2,\
-            5,1, ,7, ,4,8, , ", DefaultConstraint).unwrap();
-        let solution = naked_single_strategy_solver().solve(&sudoku);
-        let expected = Solution::Unique(SudokuGrid::parse("3x3;\
-            4,5,1,2,9,7,3,6,8,\
-            7,2,3,4,8,6,5,1,9,\
-            6,8,9,5,3,1,4,2,7,\
-            1,4,8,6,7,9,2,3,5,\
-            9,3,5,8,4,2,6,7,1,\
-            2,6,7,3,1,5,9,8,4,\
-            3,9,2,1,5,8,7,4,6,\
-            8,7,4,9,6,3,1,5,2,\
-            5,1,6,7,2,4,8,9,3").unwrap());
-
-        assert_eq!(expected, solution);
-    }
-
-    #[test]
-    fn naked_single_strategy_detects_impossibility() {
-        let sudoku = Sudoku::parse("3x3;\
-             , , , , , ,1, , ,\
-             , , , , , ,2, , ,\
-             , , , , , ,3, , ,\
-             , , , , , , , , ,\
-            1,2,3,4,5,6,7, , ,\
-             , , , , , ,4, , ,\
-            3,1,2,6,7,9, ,8, ,\
-             , , , , , ,6, , ,\
-             , , , , , ,9, , ", DefaultConstraint).unwrap();
-        let solution = naked_single_strategy_solver().solve(&sudoku);
-
-        assert_eq!(Solution::Impossible, solution);
-    }
-
-    #[test]
-    fn naked_single_strategy_unable_to_solve() {
-        let sudoku = difficult_sudoku();
-        let solution = naked_single_strategy_solver().solve(&sudoku);
-
-        assert_eq!(Solution::Ambiguous, solution);
-    }
-
-    #[test]
-    fn only_cell_strategy_solves_uniquely() {
-        let sudoku = Sudoku::parse("3x3;\
-             ,1, ,2, , ,7, ,9,\
-             , ,6, ,8, ,3, , ,\
-            8,2, , ,1,3, ,4,6,\
-            4, ,5, ,7, ,6, ,1,\
-            2,7,1,6, , , ,5, ,\
-             ,9, , ,3, , , , ,\
-             ,4, , ,5,8, ,6,7,\
-            5, ,3,9,4, , ,2,8,\
-            9,8, , , ,6,4,3, ", DefaultConstraint).unwrap();
-        let solution = only_cell_strategy_solver().solve(&sudoku);
-        let expected = Solution::Unique(SudokuGrid::parse("3x3;\
-            3,1,4,2,6,5,7,8,9,\
-            7,5,6,4,8,9,3,1,2,\
-            8,2,9,7,1,3,5,4,6,\
-            4,3,5,8,7,2,6,9,1,\
-            2,7,1,6,9,4,8,5,3,\
-            6,9,8,5,3,1,2,7,4,\
-            1,4,2,3,5,8,9,6,7,\
-            5,6,3,9,4,7,1,2,8,\
-            9,8,7,1,2,6,4,3,5").unwrap());
-
-        assert_eq!(expected, solution);
-    }
 
     fn apply<C: Constraint + Clone, S: Strategy>(strategy: S,
             sudoku_info: &mut SudokuInfo<C>, apply_once: bool) {
@@ -809,6 +701,35 @@ mod tests {
         assert!(test(&sudoku_info));
 
         assert!(sudoku_info.sudoku().is_valid());
+    }
+
+    #[test]
+    fn naked_single_strategy_finds_digit() {
+        let sudoku = Sudoku::parse("2x2;\
+            1, , , ,\
+             , , ,2,\
+             , , , ,\
+             ,3, , ", DefaultConstraint).unwrap();
+        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku);
+        
+        assert!(NakedSingleStrategy.apply(&mut sudoku_info));
+        assert_eq!(Some(4), sudoku_info.get_cell(1, 1).unwrap());
+    }
+
+    #[test]
+    fn only_cell_strategy_finds_digits() {
+        let sudoku = Sudoku::parse("2x2;\
+            1, , , ,\
+             , , ,2,\
+             , , , ,\
+             ,3, , ", DefaultConstraint).unwrap();
+        let mut sudoku_info = SudokuInfo::from_sudoku(sudoku);
+        
+        assert!(OnlyCellStrategy.apply(&mut sudoku_info));
+        assert_eq!(Some(1), sudoku_info.get_cell(2, 1).unwrap());
+        assert_eq!(Some(1), sudoku_info.get_cell(1, 2).unwrap());
+        assert_eq!(Some(2), sudoku_info.get_cell(1, 0).unwrap());
+        assert_eq!(Some(3), sudoku_info.get_cell(0, 1).unwrap());
     }
 
     #[test]
@@ -859,25 +780,6 @@ mod tests {
         
         test_strategy_stronger_and_sound(sudoku, weak_strategy,
             strong_strategy, false, |s| s.get_cell(2, 2).unwrap() == Some(6));
-    }
-
-    #[test]
-    fn strategic_backtracking_more_powerful() {
-        let sudoku = difficult_sudoku();
-        let solver = StrategicBacktrackingSolver::new(NakedSingleStrategy);
-        let solution = solver.solve(&sudoku);
-        let expected = Solution::Unique(SudokuGrid::parse("3x3;\
-            6,5,4,3,1,8,2,7,9,\
-            1,3,9,7,2,6,8,4,5,\
-            7,2,8,4,5,9,1,6,3,\
-            8,9,3,1,4,5,7,2,6,\
-            2,4,1,9,6,7,3,5,8,\
-            5,7,6,2,8,3,4,9,1,\
-            9,1,5,8,7,2,6,3,4,\
-            3,8,7,6,9,4,5,1,2,\
-            4,6,2,5,3,1,9,8,7").unwrap());
-
-        assert_eq!(expected, solution);
     }
 
     #[test]
