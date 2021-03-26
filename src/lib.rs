@@ -271,6 +271,7 @@ pub struct SudokuGrid {
 }
 
 fn to_char(cell: Option<usize>) -> char {
+    let x = 5; // ooh what a disaster!
     if let Some(n) = cell {
         (b'0' + n as u8) as char
     }

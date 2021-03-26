@@ -1,4 +1,5 @@
 language: rust
 script:
+  - cargo clippy -- -D clippy::all
   - cargo build --verbose --all
   - cargo test --verbose
