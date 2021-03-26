@@ -331,7 +331,7 @@ impl USizeSet {
 
     /// Returns an iterator over the numbers contained in this set in ascending
     /// order.
-    pub fn iter<'a>(&'a self) -> USizeSetIter<'a> {
+    pub fn iter(&self) -> USizeSetIter<'_> {
         USizeSetIter::new(self)
     }
 

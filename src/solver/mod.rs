@@ -92,7 +92,7 @@ impl BacktrackingSolver {
         let next_column = (column + 1) % size;
         let next_row = if next_column == 0 { row + 1 } else { row };
 
-        if let Some(_) = sudoku.grid().get_cell(column, row).unwrap() {
+        if sudoku.grid().get_cell(column, row).unwrap().is_some() {
             BacktrackingSolver::solve_rec(sudoku, next_column, next_row)
         }
         else {
