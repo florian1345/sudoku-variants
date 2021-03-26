@@ -271,7 +271,6 @@ pub struct SudokuGrid {
 }
 
 fn to_char(cell: Option<usize>) -> char {
-    let x = 5; // ooh what a disaster!
     if let Some(n) = cell {
         (b'0' + n as u8) as char
     }
@@ -280,7 +279,6 @@ fn to_char(cell: Option<usize>) -> char {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn line(grid: &SudokuGrid, start: char, thick_sep: char, thin_sep: char,
         segment: impl Fn(usize) -> char, pad: char, end: char, newline: bool) -> String {
     let size = grid.size();
