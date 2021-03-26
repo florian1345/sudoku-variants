@@ -232,10 +232,9 @@ mod tests {
             }
         }
 
-        for (i, count) in counts.iter().enumerate() {
+        for count in counts.iter() {
             assert!(*count >= 2600 && *count <= 3400,
-                format!("{} is not in range [2600, 3400] (index {}).",
-                    count, i));
+                "Count is not in range [2600, 3400].");
         }
     }
 
