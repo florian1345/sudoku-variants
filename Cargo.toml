@@ -12,12 +12,12 @@ documentation = "https://docs.rs/sudoku-variants/"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rand = "0.8.1"
+rand = "0.8"
 
 [dev-dependencies]
-criterion = "0.3.3"
-rand_chacha = "0.3.0"
-toml = "0.5.8"
+criterion = "0.3"
+rand_chacha = "0.3"
+toml = "0.5"
 
 [[bench]]
 name = "benchmark"
