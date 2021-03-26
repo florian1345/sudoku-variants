@@ -331,7 +331,7 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
                 let content = self.sudoku.grid().get_cell(column, row)
                     .unwrap();
 
-                if let Some(_) = content {
+                if content.is_some() {
                     continue;
                 }
 
@@ -532,7 +532,7 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
                     false
                 }
                 else {
-                    if let Some(_) = old_number {
+                    if old_number.is_some() {
                         self_options.clear();
                         self_cell.take();
                     }
@@ -569,7 +569,7 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
                 }
             }
             else if self_options.is_empty() {
-                *self_cell = other_cell.clone();
+                *self_cell = *other_cell;
                 self_cell.is_some()
             }
             else {

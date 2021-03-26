@@ -123,7 +123,7 @@ impl Strategy for OnlyCellStrategy {
             let mut locations = vec![Location::None; size + 1];
 
             for (column, row) in group {
-                if let Some(_) = sudoku_info.get_cell(column, row).unwrap() {
+                if sudoku_info.get_cell(column, row).unwrap().is_some() {
                     continue;
                 }
 
@@ -267,7 +267,7 @@ fn find_tuples_rec(sudoku_info: &SudokuInfo<impl Constraint + Clone>,
 }
 
 fn find_tuples(sudoku_info: &SudokuInfo<impl Constraint + Clone>,
-        group: &Vec<(usize, usize)>, max_size: usize) -> Vec<Tuple> {
+        group: &[(usize, usize)], max_size: usize) -> Vec<Tuple> {
     let mut result = Vec::new();
     find_tuples_rec(&sudoku_info, group, max_size,
         Tuple::new(sudoku_info.size()), &mut result);
@@ -406,7 +406,7 @@ fn apply_continuation(max_applications: Option<usize>,
 /// distinction. This function returns `true` if `sudoku_info` changed.
 fn collapse_results<C: Constraint + Clone>(sudoku_info: &mut SudokuInfo<C>,
         results: Vec<SudokuInfo<C>>) -> bool {
-    if results.len() == 0 {
+    if results.is_empty() {
         return false;
     }
 
@@ -435,7 +435,7 @@ where
 
         for column in 0..size {
             for row in 0..size {
-                if let Some(_) = sudoku_info.get_cell(column, row).unwrap() {
+                if sudoku_info.get_cell(column, row).unwrap().is_some() {
                     continue;
                 }
 
@@ -575,7 +575,7 @@ where
                 vec![Vec::new(); size + 1];
 
             for (column, row) in group {
-                if let Some(_) = sudoku_info.get_cell(column, row).unwrap() {
+                if sudoku_info.get_cell(column, row).unwrap().is_some() {
                     continue;
                 }
 
@@ -591,7 +591,7 @@ where
             for (number, locations) in number_locations_iter.enumerate() {
                 let number = number + 1;
 
-                if locations.len() == 0 || locations.len() > max_cells {
+                if locations.is_empty() || locations.len() > max_cells {
                     continue;
                 }
 
