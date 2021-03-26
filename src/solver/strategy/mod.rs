@@ -509,6 +509,10 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
             changed |= single_op(self_info, other_info);
         }
 
+        if changed {
+            self.update();
+        }
+
         Ok(changed)
     }
 
@@ -559,13 +563,6 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
                 if &Some(*self_number) == other_cell || other_options.is_empty() {
                     false
                 }
-                else if let Some(other_number) = other_cell {
-                    self_options.clear();
-                    self_options.insert(*self_number).unwrap();
-                    self_options.insert(*other_number).unwrap();
-                    self_cell.take();
-                    return true;
-                }
                 else {
                     self_cell.take();
                     true
@@ -573,7 +570,7 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
             }
             else if self_options.is_empty() {
                 *self_cell = other_cell.clone();
-                self_cell != &mut None
+                self_cell.is_some()
             }
             else {
                 false

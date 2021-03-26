@@ -27,7 +27,7 @@ pub struct USizeSet {
 }
 
 /// An enumeration of the errors that can happen when using a [USizeSet].
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum USizeSetError {
 
     /// Indicates that the bounds provided in the constructor are invalid, that
@@ -715,6 +715,45 @@ mod tests {
         assert!(set.contains(3));
         assert!(!set.contains(9));
         assert_eq!(1, set.len());
+    }
+
+    #[test]
+    fn set_macro_has_specified_range() {
+        let set = set!(2, 5; 3);
+        assert_eq!(2, set.min());
+        assert_eq!(5, set.max());
+    }
+
+    #[test]
+    fn set_macro_contains_specified_elements() {
+        let set = set!(2, 8; 3, 7, 8);
+        assert_eq!(3, set.len());
+        assert!(set.contains(3));
+        assert!(set.contains(7));
+        assert!(set.contains(8));
+        assert!(!set.contains(5));
+    }
+
+    #[test]
+    fn set_creation_error() {
+        assert_eq!(Err(USizeSetError::InvalidBounds), USizeSet::new(1, 0));
+        assert_eq!(Err(USizeSetError::InvalidBounds), USizeSet::new(5, 3));
+    }
+
+    #[test]
+    fn set_insertion_error() {
+        let mut set = USizeSet::new(1, 5).unwrap();
+        assert_eq!(Err(USizeSetError::OutOfBounds), set.insert(0));
+        assert_eq!(Err(USizeSetError::OutOfBounds), set.insert(6));
+    }
+
+    #[test]
+    fn set_operation_error() {
+        let set_1 = USizeSet::new(1, 9).unwrap();
+        let set_2 = USizeSet::new(1, 6).unwrap();
+        assert_eq!(Err(USizeSetError::DifferentBounds), set_1.union(&set_2));
+        assert_eq!(Err(USizeSetError::DifferentBounds),
+            set_2.intersect(&set_1));
     }
 
     #[test]

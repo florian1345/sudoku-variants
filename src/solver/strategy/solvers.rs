@@ -163,7 +163,14 @@ mod tests {
     use super::*;
 
     use crate::SudokuGrid;
-    use crate::constraint::DefaultConstraint;
+    use crate::constraint::{
+        AdjacentConsecutiveConstraint,
+        CompositeConstraint,
+        DefaultConstraint,
+        DiagonalsConstraint,
+        KingsMoveConstraint,
+        KnightsMoveConstraint
+    };
     use crate::solver::strategy::{
         BoundedOptionsBacktrackingStrategy,
         BoundedCellsBacktrackingStrategy,
@@ -191,6 +198,28 @@ mod tests {
                         BoundedCellsBacktrackingStrategy::new(|_| 2,
                             |_| Some(1), OnlyCellStrategy)))));
         StrategicSolver::new(strategy)
+    }
+
+    fn complex_strategic_backtracking_solver()
+            -> StrategicBacktrackingSolver<impl Strategy> {
+        // This solver is used in the benchmark, where an error was found.
+
+        StrategicBacktrackingSolver::new(CompositeStrategy::new(
+            CompositeStrategy::new(
+                NakedSingleStrategy, OnlyCellStrategy),
+            CompositeStrategy::new(
+                TupleStrategy::new(|size| size - 2),
+                CompositeStrategy::new(
+                    BoundedCellsBacktrackingStrategy::new(|size| size - 2,
+                        |_| Some(1), OnlyCellStrategy),
+                    BoundedOptionsBacktrackingStrategy::new(|_| 2,
+                        |_| Some(1), CompositeStrategy::new(
+                            NakedSingleStrategy, OnlyCellStrategy
+                        )
+                    )
+                )
+            )
+        ))
     }
 
     fn difficult_sudoku() -> Sudoku<DefaultConstraint> {
@@ -318,5 +347,149 @@ mod tests {
     fn complex_strategy_solves_difficult_sudoku() {
         let solver = complex_strategy_solver();
         assert_can_solve_difficult_sudoku(solver);
+    }
+
+    #[test]
+    fn complex_strategic_backtracking_is_sound_default() {
+        let sudoku = Sudoku::parse("3x3;
+             , , , , ,7,3, , ,\
+             ,1,2, , , ,5,4, ,\
+             , ,3,4, , , ,1, ,\
+             , ,5,6, , , ,8, ,\
+             , , , , , , , , ,\
+            7, , , , ,2,4, , ,\
+            6,4,1, , , ,8, , ,\
+            5,3, , , ,6,7, , ,\
+             , , , , ,9, , , ", DefaultConstraint).unwrap();
+        let solution = complex_strategic_backtracking_solver().solve(&sudoku);
+        let expected = Solution::Unique(SudokuGrid::parse("3x3;
+            4,5,6,2,1,7,3,9,8,\
+            8,1,2,9,6,3,5,4,7,\
+            9,7,3,4,5,8,6,1,2,\
+            1,2,5,6,7,4,9,8,3,\
+            3,6,4,8,9,1,2,7,5,\
+            7,9,8,5,3,2,4,6,1,\
+            6,4,1,7,2,5,8,3,9,\
+            5,3,9,1,8,6,7,2,4,\
+            2,8,7,3,4,9,1,5,6").unwrap());
+
+        assert_eq!(expected, solution);
+    }
+
+    #[test]
+    fn complex_strategic_backtracking_is_sound_diagonals() {
+        let sudoku = Sudoku::parse("3x3;
+             , , , ,3, , , , ,\
+             , , ,7, ,6, , , ,\
+             , ,4, , , ,2, , ,\
+             ,4, , , , , ,1, ,\
+            1, , , , , , , ,6,\
+             ,2, , , , , ,7, ,\
+             , ,9, , , ,5, , ,\
+             , , ,2, ,1, , , ,\
+             , , , ,7, , , , ",
+            CompositeConstraint::new(DefaultConstraint, DiagonalsConstraint))
+            .unwrap();
+        let solution = complex_strategic_backtracking_solver().solve(&sudoku);
+        let expected = Solution::Unique(SudokuGrid::parse("3x3;
+            7,9,6,5,3,2,1,8,4,\
+            8,1,2,7,4,6,3,5,9,\
+            5,3,4,9,1,8,2,6,7,\
+            9,4,3,6,2,7,8,1,5,\
+            1,5,7,3,8,4,9,2,6,\
+            6,2,8,1,5,9,4,7,3,\
+            2,7,9,8,6,3,5,4,1,\
+            4,6,5,2,9,1,7,3,8,\
+            3,8,1,4,7,5,6,9,2").unwrap());
+
+        assert_eq!(expected, solution);
+    }
+
+    #[test]
+    fn complex_strategic_backtracking_is_sound_knights_move() {
+        let sudoku = Sudoku::parse("3x3;
+            5,3, , , , , ,8,7,\
+            1, , , , , , , ,9,\
+             , , ,7, ,2, , , ,\
+             , , , , ,4,7, , ,\
+             , , , , , , , , ,\
+             , ,4,6, , , , , ,\
+             , , ,3, ,8, , , ,\
+            7, , , , , , , ,2,\
+            9,4, , , , , ,3,5",
+            CompositeConstraint::new(DefaultConstraint, KnightsMoveConstraint))
+            .unwrap();
+        let solution = complex_strategic_backtracking_solver().solve(&sudoku);
+        let expected = Solution::Unique(SudokuGrid::parse("3x3;
+            5,3,2,4,9,1,6,8,7,\
+            1,8,7,5,3,6,2,4,9,\
+            4,9,6,7,8,2,5,1,3,\
+            3,6,9,8,2,4,7,5,1,\
+            8,7,5,9,1,3,4,2,6,\
+            2,1,4,6,7,5,3,9,8,\
+            6,2,1,3,5,8,9,7,4,\
+            7,5,3,1,4,9,8,6,2,\
+            9,4,8,2,6,7,1,3,5").unwrap());
+
+        assert_eq!(expected, solution);
+    }
+
+    #[test]
+    fn complex_strategic_backtracking_is_sound_kings_move() {
+        let sudoku = Sudoku::parse("3x3;
+             ,8, , , , , ,9, ,\
+            3,2, , , , , ,5,4,\
+             , , ,2, ,5, , , ,\
+             , ,7,8, ,6,4, , ,\
+             , , , , , , , , ,\
+             , ,6,3, ,1,9, , ,\
+             , , ,7, ,8, , , ,\
+            4,7, , , , , ,6,5,\
+             ,9, , , , , ,1, ",
+            CompositeConstraint::new(DefaultConstraint, KingsMoveConstraint))
+            .unwrap();
+        let solution = complex_strategic_backtracking_solver().solve(&sudoku);
+        let expected = Solution::Unique(SudokuGrid::parse("3x3;
+            7,8,5,6,4,3,1,9,2,\
+            3,2,1,9,8,7,6,5,4,\
+            9,6,4,2,1,5,8,7,3,\
+            5,3,7,8,9,6,4,2,1,\
+            8,1,9,4,7,2,5,3,6,\
+            2,4,6,3,5,1,9,8,7,\
+            1,5,2,7,6,8,3,4,9,\
+            4,7,8,1,3,9,2,6,5,\
+            6,9,3,5,2,4,7,1,8").unwrap());
+
+        assert_eq!(expected, solution);
+    }
+
+    #[test]
+    fn complex_strategic_backtracking_is_sound_adjacent_consecutive() {
+        let sudoku = Sudoku::parse("3x3;
+             , , , , , , , , ,\
+             , , , ,4, , , , ,\
+             , ,7, ,6, ,5, , ,\
+             , , , ,1, , , , ,\
+             ,9,4,8, ,5,2,6, ,\
+             , , , ,9, , , , ,\
+             , ,1, ,2, ,4, , ,\
+             , , , ,8, , , , ,\
+             , , , , , , , , ",
+            CompositeConstraint::new(DefaultConstraint, 
+                AdjacentConsecutiveConstraint))
+            .unwrap();
+        let solution = complex_strategic_backtracking_solver().solve(&sudoku);
+        let expected = Solution::Unique(SudokuGrid::parse("3x3;
+            2,4,9,5,7,3,8,1,6,
+            6,1,5,2,4,8,3,7,9,
+            8,3,7,9,6,1,5,2,4,
+            3,5,2,6,1,7,9,4,8,
+            7,9,4,8,3,5,2,6,1,
+            1,6,8,4,9,2,7,3,5,
+            5,8,1,7,2,6,4,9,3,
+            9,2,6,3,8,4,1,5,7,
+            4,7,3,1,5,9,6,8,2").unwrap());
+
+        assert_eq!(expected, solution);
     }
 }
