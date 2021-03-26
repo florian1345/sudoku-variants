@@ -272,13 +272,14 @@ pub struct SudokuGrid {
 
 fn to_char(cell: Option<usize>) -> char {
     if let Some(n) = cell {
-        ('0' as u8 + n as u8) as char
+        (b'0' + n as u8) as char
     }
     else {
         ' '
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn line(grid: &SudokuGrid, start: char, thick_sep: char, thin_sep: char,
         segment: impl Fn(usize) -> char, pad: char, end: char, newline: bool) -> String {
     let size = grid.size();
@@ -686,7 +687,7 @@ impl SudokuGrid {
 
         for row in 0..size {
             for column in 0..size {
-                if let Some(_) = self.get_cell(column, row).unwrap() {
+                if self.get_cell(column, row).unwrap().is_some() {
                     clues += 1;
                 }
             }

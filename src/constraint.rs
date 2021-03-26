@@ -337,10 +337,9 @@ fn check_number_block(grid: &SudokuGrid, column: usize, row: usize,
 
     for other_row in block_row..(block_row + block_height) {
         for other_column in block_column..(block_column + block_width) {
-            if bop(other_row != row, other_column != column) {
-                if grid.has_number(other_column, other_row, number).unwrap() {
-                    return false;
-                }
+            if bop(other_row != row, other_column != column) &&
+                    grid.has_number(other_column, other_row, number).unwrap() {
+                return false;
             }
         }
     }
@@ -931,6 +930,12 @@ impl Clone for DynamicConstraint {
         DynamicConstraint {
             constraints
         }
+    }
+}
+
+impl Default for DynamicConstraint {
+    fn default() -> DynamicConstraint {
+        DynamicConstraint::new()
     }
 }
 
