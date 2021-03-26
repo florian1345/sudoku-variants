@@ -1,6 +1,7 @@
 language: rust
 script:
+  - export RUSTFLAGS="-D warnings"
   - rustup component add clippy
-  - cargo clippy -- -D clippy::all
+  - cargo clippy --verbose
   - cargo build --verbose --all
   - cargo test --verbose
