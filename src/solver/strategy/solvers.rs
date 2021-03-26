@@ -193,6 +193,28 @@ mod tests {
         StrategicSolver::new(strategy)
     }
 
+    fn complex_strategic_backtracking_solver()
+            -> StrategicBacktrackingSolver<impl Strategy> {
+        // This solver is used in the benchmark, where an error was found.
+
+        StrategicBacktrackingSolver::new(CompositeStrategy::new(
+            CompositeStrategy::new(
+                NakedSingleStrategy, OnlyCellStrategy),
+            CompositeStrategy::new(
+                TupleStrategy::new(|size| size - 2),
+                CompositeStrategy::new(
+                    BoundedCellsBacktrackingStrategy::new(|size| size - 2,
+                        |_| Some(1), OnlyCellStrategy),
+                    BoundedOptionsBacktrackingStrategy::new(|_| 2,
+                        |_| Some(1), CompositeStrategy::new(
+                            NakedSingleStrategy, OnlyCellStrategy
+                        )
+                    )
+                )
+            )
+        ))
+    }
+
     fn difficult_sudoku() -> Sudoku<DefaultConstraint> {
         // This Sudoku is taken from the World Puzzle Federation Sudoku GP 2020
         // Round 5 Puzzle 5
@@ -318,5 +340,32 @@ mod tests {
     fn complex_strategy_solves_difficult_sudoku() {
         let solver = complex_strategy_solver();
         assert_can_solve_difficult_sudoku(solver);
+    }
+
+    #[test]
+    fn complex_strategic_backtracking_is_sound_default() {
+        let sudoku = Sudoku::parse("3x3;
+             , , , , ,7,3, , ,\
+             ,1,2, , , ,5,4, ,\
+             , ,3,4, , , ,1, ,\
+             , ,5,6, , , ,8, ,\
+             , , , , , , , , ,\
+            7, , , , ,2,4, , ,\
+            6,4,1, , , ,8, , ,\
+            5,3, , , ,6,7, , ,\
+             , , , , ,9, , , ", DefaultConstraint).unwrap();
+        let solution = complex_strategic_backtracking_solver().solve(&sudoku);
+        let expected = Solution::Unique(SudokuGrid::parse("3x3;
+            4,5,6,2,1,7,3,9,8,\
+            8,1,2,9,6,3,5,4,7,\
+            9,7,3,4,5,8,6,1,2,\
+            1,2,5,6,7,4,9,8,3,\
+            3,6,4,8,9,1,2,7,5,\
+            7,9,8,5,3,2,4,6,1,\
+            6,4,1,7,2,5,8,3,9,\
+            5,3,9,1,8,6,7,2,4,\
+            2,8,7,3,4,9,1,5,6").unwrap());
+
+        assert_eq!(expected, solution);
     }
 }

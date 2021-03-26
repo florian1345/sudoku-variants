@@ -22,6 +22,8 @@ use sudoku_variants::constraint::{
 };
 use sudoku_variants::solver::{BacktrackingSolver, Solution, Solver};
 use sudoku_variants::solver::strategy::{
+    BoundedCellsBacktrackingStrategy,
+    BoundedOptionsBacktrackingStrategy,
     CompositeStrategy,
     NakedSingleStrategy,
     OnlyCellStrategy,
@@ -192,7 +194,20 @@ fn benchmark_complex_strategic_backtracking(c: &mut Criterion) {
         StrategicBacktrackingSolver::new(CompositeStrategy::new(
             CompositeStrategy::new(
                 NakedSingleStrategy, OnlyCellStrategy),
-            TupleStrategy::new(|size| size - 2))))
+            CompositeStrategy::new(
+                TupleStrategy::new(|size| size - 2),
+                CompositeStrategy::new(
+                    BoundedCellsBacktrackingStrategy::new(|size| size - 2,
+                        |_| Some(1), OnlyCellStrategy),
+                    BoundedOptionsBacktrackingStrategy::new(|_| 2,
+                        |_| Some(1), CompositeStrategy::new(
+                            NakedSingleStrategy, OnlyCellStrategy
+                        )
+                    )
+                )
+            )
+        ))
+    )
 }
 
 criterion_group!(all,

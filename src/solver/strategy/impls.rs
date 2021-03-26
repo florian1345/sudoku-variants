@@ -53,7 +53,6 @@ impl Strategy for NakedSingleStrategy {
         }
 
         sudoku_info.invalidate();
-
         changed
     }
 }
