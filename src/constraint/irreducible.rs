@@ -3,17 +3,70 @@
 //! should not have to `use` anything from this module directly.
 
 use crate::SudokuGrid;
-use crate::constraint::{Constraint, Group};
+use crate::constraint::{self, Constraint, Group};
 use crate::util::USizeSet;
 
 use std::iter::Cloned;
 use std::slice::Iter;
 
+pub trait IrreducibleConstraint {
+
+    /// See [Constraint::check].
+    fn check(&self, grid: &SudokuGrid) -> bool {
+        constraint::default_check(grid, |g, c, r| self.check_cell(g, c, r))
+    }
+
+    /// See [Constraint::check_cell].
+    fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
+            -> bool {
+        constraint::default_check_cell(grid, column, row,
+            |g, c, r, n| self.check_number(g, c, r, n))
+    }
+
+    /// See [Constraint::check_number].
+    fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
+        number: usize) -> bool;
+
+    /// See [Constraint::get_groups].
+    fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group>;
+}
+
+impl<C: IrreducibleConstraint> Constraint for C {
+    type Reduction = ();
+    type ReverseInfo = ();
+
+    fn check(&self, grid: &SudokuGrid) -> bool {
+        IrreducibleConstraint::check(self, grid)
+    }
+
+    fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
+            -> bool {
+        IrreducibleConstraint::check_cell(self, grid, column, row)
+    }
+
+    fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
+            number: usize) -> bool {
+        IrreducibleConstraint::check_number(self, grid, column, row, number)
+    }
+
+    fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
+        IrreducibleConstraint::get_groups(self, grid)
+    }
+
+    fn reduce(&mut self, _: &()) -> () {
+        panic!("Irreducible constraint was asked to reduce.")
+    }
+
+    fn reverse(&mut self, _: &(), _: &()) {
+        panic!("Irreducible constraint was asked to revert reduction.")
+    }
+}
+
 /// A [Constraint] that there are no duplicates in each row.
 #[derive(Clone)]
 pub struct RowConstraint;
 
-impl Constraint for RowConstraint {
+impl IrreducibleConstraint for RowConstraint {
     fn check(&self, grid: &SudokuGrid) -> bool {
         let size = grid.size();
         let mut set = USizeSet::new(1, size).unwrap();
@@ -69,7 +122,7 @@ impl Constraint for RowConstraint {
 #[derive(Clone)]
 pub struct ColumnConstraint;
 
-impl Constraint for ColumnConstraint {
+impl IrreducibleConstraint for ColumnConstraint {
 
     // TODO investigate whether code duplication between this and RowConstraint
     // can be avoided.
@@ -176,7 +229,7 @@ fn get_groups_block(grid: &SudokuGrid) -> Vec<Group> {
 #[derive(Clone)]
 pub struct BlockConstraint;
 
-impl Constraint for BlockConstraint {
+impl IrreducibleConstraint for BlockConstraint {
     
     // TODO investigate whether code duplication between this and RowConstraint
     // and ColumnConstraint can be avoided.
@@ -225,9 +278,9 @@ impl Constraint for BlockConstraint {
 #[derive(Clone)]
 struct BlockConstraintNoLineColumn;
 
-impl Constraint for BlockConstraintNoLineColumn {
+impl IrreducibleConstraint for BlockConstraintNoLineColumn {
     fn check(&self, grid: &SudokuGrid) -> bool {
-        BlockConstraint.check(grid)
+        Constraint::check(&BlockConstraint, grid)
     }
 
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
@@ -245,31 +298,35 @@ impl Constraint for BlockConstraintNoLineColumn {
 #[derive(Clone)]
 pub struct DefaultConstraint;
 
-impl Constraint for DefaultConstraint {
+impl IrreducibleConstraint for DefaultConstraint {
     fn check(&self, grid: &SudokuGrid) -> bool {
-        RowConstraint.check(grid) &&
-            ColumnConstraint.check(grid) &&
-            BlockConstraintNoLineColumn.check(grid)
+        Constraint::check(&RowConstraint, grid) &&
+            Constraint::check(&ColumnConstraint, grid) &&
+            Constraint::check(&BlockConstraintNoLineColumn, grid)
     }
 
     fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
             -> bool {
-        RowConstraint.check_cell(grid, column, row) &&
-            ColumnConstraint.check_cell(grid, column, row) &&
-            BlockConstraintNoLineColumn.check_cell(grid, column, row)
+        Constraint::check_cell(&RowConstraint, grid, column, row) &&
+            Constraint::check_cell(&ColumnConstraint, grid, column, row) &&
+            Constraint::check_cell(&BlockConstraintNoLineColumn, grid, column,
+                row)
     }
 
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
-        RowConstraint.check_number(grid, column, row, number) &&
-            ColumnConstraint.check_number(grid, column, row, number) &&
-            BlockConstraintNoLineColumn.check_number(grid, column, row, number)
+        Constraint::check_number(&RowConstraint, grid, column, row, number) &&
+            Constraint::check_number(&ColumnConstraint, grid, column, row,
+                number) &&
+            Constraint::check_number(&BlockConstraintNoLineColumn, grid,
+                column, row, number)
     }
 
     fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
-        let mut groups = RowConstraint.get_groups(grid);
-        groups.append(&mut ColumnConstraint.get_groups(grid));
-        groups.append(&mut BlockConstraintNoLineColumn.get_groups(grid));
+        let mut groups = Constraint::get_groups(&RowConstraint, grid);
+        groups.append(&mut Constraint::get_groups(&ColumnConstraint, grid));
+        groups.append(&mut Constraint::get_groups(&BlockConstraintNoLineColumn,
+            grid));
         groups
     }
 }
@@ -279,7 +336,7 @@ impl Constraint for DefaultConstraint {
 #[derive(Clone)]
 pub struct DiagonalsConstraint;
 
-impl Constraint for DiagonalsConstraint {
+impl IrreducibleConstraint for DiagonalsConstraint {
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
         let size = grid.size();
@@ -417,7 +474,7 @@ pub trait RelativeCellConstraint {
     }
 }
 
-impl<C: RelativeCellConstraint> Constraint for C {
+impl<C: RelativeCellConstraint> IrreducibleConstraint for C {
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
         let iter =

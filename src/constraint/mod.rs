@@ -129,6 +129,32 @@ pub use irreducible::*;
 /// `(column, row)`.
 pub type Group = Vec<(usize, usize)>;
 
+pub(crate) fn default_check(grid: &SudokuGrid,
+        check_cell: impl Fn(&SudokuGrid, usize, usize) -> bool) -> bool {
+    let size = grid.size();
+
+    for row in 0..size {
+        for column in 0..size {
+            if !check_cell(grid, column, row) {
+                return false;
+            }
+        }
+    }
+
+    true
+}
+
+pub(crate) fn default_check_cell(grid: &SudokuGrid, column: usize, row: usize,
+        check_number: impl Fn(&SudokuGrid, usize, usize, usize) -> bool)
+        -> bool {
+    if let Some(number) = grid.get_cell(column, row).unwrap() {
+        check_number(grid, column, row, number)
+    }
+    else {
+        true
+    }
+}
+
 /// A constraint defines some property on a Sudoku grid. These are essentially
 /// the rules of the Sudoku. In standard Sudoku these are "No duplicates in a
 /// row" (`RowConstraint`), "No duplicates in a column" (`ColumnConstraint`),
@@ -149,22 +175,15 @@ pub type Group = Vec<(usize, usize)>;
 /// `CloneConstraint`.
 pub trait Constraint {
 
+    type Reduction;
+    type ReverseInfo;
+
     /// Checks whether the given [SudokuGrid] matches this constraint, that is,
     /// every cell matches this constraint.  By default, this runs `check_cell`
     /// on every cell of the grid, which may be inefficient, so custom
     /// implementations may be advantageous.
     fn check(&self, grid: &SudokuGrid) -> bool {
-        let size = grid.size();
-
-        for row in 0..size {
-            for column in 0..size {
-                if !self.check_cell(grid, column, row) {
-                    return false;
-                }
-            }
-        }
-
-        true
+        default_check(grid, |g, c, r| self.check_cell(g, c, r))
     }
 
     /// Checks whether the cell at the given position in the [SudokuGrid]
@@ -173,12 +192,8 @@ pub trait Constraint {
     /// that cell. If the cell is empty, this function always returns `true`.
     fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
             -> bool {
-        if let Some(number) = grid.get_cell(column, row).unwrap() {
-            self.check_number(grid, column, row, number)
-        }
-        else {
-            true
-        }
+        default_check_cell(grid, column, row,
+            |g, c, r, n| self.check_number(g, c, r, n))
     }
 
     /// Checks whether the given `number` would fit into the cell specified by
@@ -212,4 +227,9 @@ pub trait Constraint {
     /// method, getting this implementation will enable some strategies as well
     /// as improve the performance of strategic backtracking.
     fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group>;
+
+    fn reduce(&mut self, reduction: &Self::Reduction) -> Self::ReverseInfo;
+
+    fn reverse(&mut self, reduction: &Self::Reduction,
+        reverse_info: &Self::ReverseInfo);
 }

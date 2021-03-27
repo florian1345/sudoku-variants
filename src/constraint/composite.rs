@@ -7,6 +7,8 @@
 use crate::SudokuGrid;
 use crate::constraint::{Constraint, Group};
 
+use std::any::Any;
+
 /// A [Constraint] which simultaneously enforces two other constraints. This
 /// allows the construction of complex constraints by nesting composite
 /// constraints.
@@ -61,11 +63,19 @@ where
     }
 }
 
+pub enum CompositeData<D1, D2> {
+    First(D1),
+    Second(D2)
+}
+
 impl<C1, C2> Constraint for CompositeConstraint<C1, C2>
 where
     C1: Constraint + Clone + 'static,
     C2: Constraint + Clone + 'static
 {
+    type Reduction = CompositeData<C1::Reduction, C2::Reduction>;
+    type ReverseInfo = CompositeData<C1::ReverseInfo, C2::ReverseInfo>;
+
     fn check(&self, grid: &SudokuGrid) -> bool {
         self.c1.check(grid) && self.c2.check(grid)
     }
@@ -87,21 +97,122 @@ where
         groups.append(&mut self.c2.get_groups(grid));
         groups
     }
+
+    fn reduce(&mut self, reduction: &Self::Reduction) -> Self::ReverseInfo {
+        match reduction {
+            CompositeData::First(reduction) =>
+                CompositeData::First(self.c1.reduce(reduction)),
+            CompositeData::Second(reduction) =>
+                CompositeData::Second(self.c2.reduce(reduction))
+        }
+    }
+
+    fn reverse(&mut self, reduction: &Self::Reduction,
+            reverse_info: &Self::ReverseInfo) {
+        match reduction {
+            CompositeData::First(reduction) => {
+                if let CompositeData::First(reverse_info) = reverse_info {
+                    self.c1.reverse(reduction, reverse_info)
+                }
+                else {
+                    panic!("Incompatible reduction and reverse info provided.")
+                }
+            },
+            CompositeData::Second(reduction) => {
+                if let CompositeData::Second(reverse_info) = reverse_info {
+                    self.c2.reverse(reduction, reverse_info)
+                }
+                else {
+                    panic!("Incompatible reduction and reverse info provided.")
+                }
+            }
+        }
+    }
 }
 
 /// A trait for cloneable [Constraint]s which is used in the
 /// [DynamicConstraint] to clone trait objects. Normally a user should not have
 /// to implement this trait manually, as it is automatically implemented for
 /// all `Constraint`s that implement [Clone] (and have static lifetime).
-pub trait CloneConstraint : Constraint {
+trait CloneConstraint :
+        Constraint<Reduction = Box<dyn Any>, ReverseInfo = Box<dyn Any>> {
 
     /// Clones a trait object of this constraint.
     fn clone_box(&self) -> Box<dyn CloneConstraint>;
 }
 
-impl<C: Constraint + Clone + 'static> CloneConstraint for C {
+#[derive(Clone)]
+struct WrappedConstraint<C: Constraint + Clone> {
+    constraint: C
+}
+
+impl<C: Constraint + Clone + 'static> From<C> for WrappedConstraint<C> {
+    fn from(c: C) -> WrappedConstraint<C> {
+        WrappedConstraint {
+            constraint: c
+        }
+    }
+}
+
+impl<C: Constraint + Clone + 'static> Constraint for WrappedConstraint<C> {
+    type Reduction = Box<dyn Any>;
+    type ReverseInfo = Box<dyn Any>;
+
+    fn check(&self, grid: &SudokuGrid) -> bool {
+        self.constraint.check(grid)
+    }
+
+    fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
+            -> bool {
+        self.constraint.check_cell(grid, column, row)
+    }
+
+    fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
+            number: usize) -> bool {
+        self.constraint.check_number(grid, column, row, number)
+    }
+
+    fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
+        self.constraint.get_groups(grid)
+    }
+
+    fn reduce(&mut self, reduction: &Box<dyn Any>) -> Box<dyn Any> {
+        let reduction: &C::Reduction = reduction.downcast_ref()
+            .expect("Reduction has wrong type.");
+        let reverse_info = self.constraint.reduce(reduction);
+        Box::new(reverse_info)
+    }
+
+    fn reverse(&mut self, reduction: &Self::Reduction,
+            reverse_info: &Self::ReverseInfo) {
+        let reduction: &C::Reduction = reduction.downcast_ref()
+            .expect("Reduction has wrong type.");
+        let reverse_info: &C::ReverseInfo = reverse_info.downcast_ref()
+            .expect("Reverse info has wrong type.");
+        self.constraint.reverse(reduction, reverse_info);
+    }
+}
+
+impl<C> CloneConstraint for WrappedConstraint<C>
+where
+    C: Constraint + Clone + 'static
+{
     fn clone_box(&self) -> Box<dyn CloneConstraint> {
         Box::new(self.clone())
+    }
+}
+
+pub struct IndexedAny {
+    index: usize,
+    data: Box<dyn Any>
+}
+
+impl IndexedAny {
+    pub fn new(index: usize, data: Box<dyn Any>) -> IndexedAny {
+        IndexedAny {
+            index,
+            data
+        }
     }
 }
 
@@ -115,16 +226,6 @@ pub struct DynamicConstraint {
 
 impl DynamicConstraint {
 
-    /// Creates a new dynamic constraint from the given child constraints. The
-    /// created constraint is defined to be satisfied if all children are
-    /// satisfied.
-    pub fn with_children(constraints: Vec<Box<dyn CloneConstraint>>)
-            -> DynamicConstraint {
-        DynamicConstraint {
-            constraints
-        }
-    }
-
     /// Creates a new dynamic constraint without any child constraint. Children
     /// can be added later using [DynamicConstraint::add].
     pub fn new() -> DynamicConstraint {
@@ -133,14 +234,18 @@ impl DynamicConstraint {
         }
     }
 
-    /// Adds a [CloneConstraint] to this dynamic constraint as a child. It is
+    /// Adds a [Constraint] to this dynamic constraint as a child. It is
     /// wrapped in a trait object.
-    pub fn add(&mut self, constraint: impl CloneConstraint + 'static) {
-        self.constraints.push(Box::new(constraint))
+    pub fn add(&mut self, constraint: impl Constraint + Clone + 'static) {
+        self.constraints.push(Box::new(WrappedConstraint::from(constraint)))
     }
 }
 
 impl Constraint for DynamicConstraint {
+
+    type Reduction = IndexedAny;
+    type ReverseInfo = Box<dyn Any>;
+
     fn check(&self, grid: &SudokuGrid) -> bool {
         self.constraints.iter().all(|c| c.check(grid))
     }
@@ -160,6 +265,20 @@ impl Constraint for DynamicConstraint {
             .map(|c| c.get_groups(grid))
             .flat_map(|g| g.into_iter())
             .collect()
+    }
+
+    fn reduce(&mut self, reduction: &IndexedAny) -> Box<dyn Any> {
+        let index = reduction.index;
+        let constraint = self.constraints.get_mut(index)
+            .expect("Reduction had invalid index.");
+        constraint.reduce(&reduction.data)
+    }
+
+    fn reverse(&mut self, reduction: &IndexedAny, reverse_info: &Box<dyn Any>) {
+        let index = reduction.index;
+        let constraint = self.constraints.get_mut(index)
+            .expect("Reduction had invalid index.");
+        constraint.reverse(&reduction.data, reverse_info);
     }
 }
 
@@ -229,17 +348,17 @@ mod tests {
 
     #[test]
     fn dynamic_satisfied() {
-        test_column_row_satisfied(DynamicConstraint::with_children(vec![
-            Box::new(RowConstraint),
-            Box::new(ColumnConstraint)
-        ]));
+        let mut c = DynamicConstraint::new();
+        c.add(RowConstraint);
+        c.add(ColumnConstraint);
+        test_column_row_satisfied(c);
     }
 
     #[test]
     fn dynamic_violated() {
-        test_column_row_violated(DynamicConstraint::with_children(vec![
-            Box::new(RowConstraint),
-            Box::new(ColumnConstraint)
-        ]));
+        let mut c = DynamicConstraint::new();
+        c.add(RowConstraint);
+        c.add(ColumnConstraint);
+        test_column_row_violated(c);
     }
 }
