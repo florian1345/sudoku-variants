@@ -106,11 +106,11 @@ where
     fn list_reductions(&self, solution: &SudokuGrid) -> Vec<Self::Reduction> {
         let mut r1: Vec<Self::Reduction> = self.c1.list_reductions(solution)
             .into_iter()
-            .map(|r| CompositeData::First(r))
+            .map(CompositeData::First)
             .collect();
         let mut r2: Vec<Self::Reduction> = self.c2.list_reductions(solution)
             .into_iter()
-            .map(|r| CompositeData::Second(r))
+            .map(CompositeData::Second)
             .collect();
         r1.append(&mut r2);
         r1

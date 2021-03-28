@@ -45,19 +45,20 @@
 //! let c1 = CompositeConstraint::new(DefaultConstraint, DiagonalsConstraint);
 //!
 //! // Option 2: DynamicConstraint
-//! let c2 = DynamicConstraint::with_children(vec![
-//!     Box::new(DefaultConstraint),
-//!     Box::new(DiagonalsConstraint)
-//! ]);
+//! let mut c2 = DynamicConstraint::new();
+//! c2.add(DefaultConstraint);
+//! c2.add(DiagonalsConstraint);
 //! ```
 //!
 //! # Custom constraints
 //!
-//! When implementing a constraint, it is usually sufficient to implement
-//! [Constraint::check_number] and [Constraint::get_groups]. All other methods
-//! are default-implemented. However, the performance of [Constraint::check]
-//! could be improved by a specialized implementation, since by default it
-//! calls `check_number` for every cell.
+//! When implementing an irreducible constraint, it is usually sufficient to
+//! implement [IrreducibleConstraint::check_number] and
+//! [IrreducibleConstraint::get_groups]. All other methods are
+//! default-implemented. However, the performance of [Constraint::check] could
+//! be improved by a specialized implementation, since by default it calls
+//! `check_number` for every cell. The [Constraint] trait is implemented via a
+//! blanket implementation on all [IrreducibleConstraint]s.
 //!
 //! As an example of an implementation of a custom constraint, we will look at
 //! the source code of a subset of the `DiagonalsConstraint`, which we call
@@ -66,12 +67,12 @@
 //!
 //! ```
 //! use sudoku_variants::SudokuGrid;
-//! use sudoku_variants::constraint::{Constraint, Group};
+//! use sudoku_variants::constraint::{Group, IrreducibleConstraint};
 //!
 //! #[derive(Clone)]
 //! struct MainDiagonalConstraint;
 //!
-//! impl Constraint for MainDiagonalConstraint {
+//! impl IrreducibleConstraint for MainDiagonalConstraint {
 //!     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
 //!             number: usize) -> bool {
 //!         // For all cells on the diagonal, the column index is equal to the
@@ -116,6 +117,8 @@
 //! a `DynamicConstraint`. However, if you derive `Clone`, you do not need to
 //! worry about `CloneConstraint`, since it is implemented for every constraint
 //! that implements `Clone` by default.
+
+// TODO add an example for a custom, reducible constraint
 
 use crate::SudokuGrid;
 
