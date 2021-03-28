@@ -3,17 +3,89 @@
 //! should not have to `use` anything from this module directly.
 
 use crate::SudokuGrid;
-use crate::constraint::{Constraint, Group};
+use crate::constraint::{self, Constraint, Group, ReductionError};
 use crate::util::USizeSet;
 
 use std::iter::Cloned;
 use std::slice::Iter;
 
+/// A trait for all constraints which are not reducible. That is, there is no
+/// way to make this constraint less expressive while remaining correct.
+/// Examples for such constraints are stateless constraints such as the classic
+/// Sudoku constraint, which checks digit uniqueness in each row, column, and
+/// block and therefore cannot be changed in any way, but also stateful
+/// constraints whose state is unique for any given solution, such as an XV
+/// constraint, which only has one valid configuration of X's and V's for any
+/// filled grid. One counterexample is the Killer Sudoku constraint, where
+/// neighboring cages can be merged, as long as they do not contain any
+/// repeating digits, thus making the constraint less expressive.
+pub trait IrreducibleConstraint {
+
+    /// See [Constraint::check].
+    #[inline]
+    fn check(&self, grid: &SudokuGrid) -> bool {
+        constraint::default_check(self, grid)
+    }
+
+    /// See [Constraint::check_cell].
+    #[inline]
+    fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
+            -> bool {
+        constraint::default_check_cell(self, grid, column, row)
+    }
+
+    /// See [Constraint::check_number].
+    fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
+        number: usize) -> bool;
+
+    /// See [Constraint::get_groups].
+    fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group>;
+}
+
+impl<C: IrreducibleConstraint + ?Sized> Constraint for C {
+    type Reduction = ();
+    type RevertInfo = ();
+
+    #[inline]
+    fn check(&self, grid: &SudokuGrid) -> bool {
+        <C as IrreducibleConstraint>::check(self, grid)
+    }
+
+    #[inline]
+    fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
+            -> bool {
+        <C as IrreducibleConstraint>::check_cell(self, grid, column, row)
+    }
+
+    #[inline]
+    fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
+            number: usize) -> bool {
+        <C as IrreducibleConstraint>::check_number(self, grid, column, row,
+            number)
+    }
+
+    #[inline]
+    fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
+        <C as IrreducibleConstraint>::get_groups(self, grid)
+    }
+
+    fn list_reductions(&self, _: &SudokuGrid) -> Vec<Self::Reduction> {
+        Vec::new()
+    }
+
+    fn reduce(&mut self, _: &SudokuGrid, _: &())
+            -> Result<(), ReductionError> {
+        Err(ReductionError::InvalidReduction)
+    }
+
+    fn revert(&mut self, _: &SudokuGrid, _: &(), _: &()) { }
+}
+
 /// A [Constraint] that there are no duplicates in each row.
 #[derive(Clone)]
 pub struct RowConstraint;
 
-impl Constraint for RowConstraint {
+impl IrreducibleConstraint for RowConstraint {
     fn check(&self, grid: &SudokuGrid) -> bool {
         let size = grid.size();
         let mut set = USizeSet::new(1, size).unwrap();
@@ -69,7 +141,7 @@ impl Constraint for RowConstraint {
 #[derive(Clone)]
 pub struct ColumnConstraint;
 
-impl Constraint for ColumnConstraint {
+impl IrreducibleConstraint for ColumnConstraint {
 
     // TODO investigate whether code duplication between this and RowConstraint
     // can be avoided.
@@ -176,7 +248,7 @@ fn get_groups_block(grid: &SudokuGrid) -> Vec<Group> {
 #[derive(Clone)]
 pub struct BlockConstraint;
 
-impl Constraint for BlockConstraint {
+impl IrreducibleConstraint for BlockConstraint {
     
     // TODO investigate whether code duplication between this and RowConstraint
     // and ColumnConstraint can be avoided.
@@ -225,9 +297,9 @@ impl Constraint for BlockConstraint {
 #[derive(Clone)]
 struct BlockConstraintNoLineColumn;
 
-impl Constraint for BlockConstraintNoLineColumn {
+impl IrreducibleConstraint for BlockConstraintNoLineColumn {
     fn check(&self, grid: &SudokuGrid) -> bool {
-        BlockConstraint.check(grid)
+        <BlockConstraint as Constraint>::check(&BlockConstraint, grid)
     }
 
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
@@ -245,31 +317,42 @@ impl Constraint for BlockConstraintNoLineColumn {
 #[derive(Clone)]
 pub struct DefaultConstraint;
 
-impl Constraint for DefaultConstraint {
+impl IrreducibleConstraint for DefaultConstraint {
     fn check(&self, grid: &SudokuGrid) -> bool {
-        RowConstraint.check(grid) &&
-            ColumnConstraint.check(grid) &&
-            BlockConstraintNoLineColumn.check(grid)
+        <RowConstraint as Constraint>::check(&RowConstraint, grid) &&
+        <ColumnConstraint as Constraint>::check(&ColumnConstraint, grid) &&
+        <BlockConstraintNoLineColumn as Constraint>::check(
+            &BlockConstraintNoLineColumn, grid)
     }
 
     fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
             -> bool {
-        RowConstraint.check_cell(grid, column, row) &&
-            ColumnConstraint.check_cell(grid, column, row) &&
-            BlockConstraintNoLineColumn.check_cell(grid, column, row)
+        <RowConstraint as Constraint>::check_cell(&RowConstraint, grid, column,
+            row) &&
+        <ColumnConstraint as Constraint>::check_cell(&ColumnConstraint, grid,
+            column, row) &&
+        <BlockConstraintNoLineColumn as Constraint>::check_cell(
+            &BlockConstraintNoLineColumn, grid, column, row)
     }
 
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
-        RowConstraint.check_number(grid, column, row, number) &&
-            ColumnConstraint.check_number(grid, column, row, number) &&
-            BlockConstraintNoLineColumn.check_number(grid, column, row, number)
+        <RowConstraint as Constraint>::check_number(&RowConstraint, grid,
+            column, row, number) &&
+        <ColumnConstraint as Constraint>::check_number(&ColumnConstraint, grid,
+            column, row, number) &&
+        <BlockConstraintNoLineColumn as Constraint>::check_number(
+            &BlockConstraintNoLineColumn, grid, column, row, number)
     }
 
     fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
-        let mut groups = RowConstraint.get_groups(grid);
-        groups.append(&mut ColumnConstraint.get_groups(grid));
-        groups.append(&mut BlockConstraintNoLineColumn.get_groups(grid));
+        let mut groups =
+            <RowConstraint as Constraint>::get_groups(&RowConstraint, grid);
+        groups.append(&mut <ColumnConstraint as Constraint>::get_groups(
+            &ColumnConstraint, grid));
+        groups.append(
+            &mut <BlockConstraintNoLineColumn as Constraint>::get_groups(
+                &BlockConstraintNoLineColumn, grid));
         groups
     }
 }
@@ -279,7 +362,7 @@ impl Constraint for DefaultConstraint {
 #[derive(Clone)]
 pub struct DiagonalsConstraint;
 
-impl Constraint for DiagonalsConstraint {
+impl IrreducibleConstraint for DiagonalsConstraint {
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
         let size = grid.size();
@@ -417,7 +500,9 @@ pub trait RelativeCellConstraint {
     }
 }
 
-impl<C: RelativeCellConstraint> Constraint for C {
+impl<C: RelativeCellConstraint> IrreducibleConstraint for C {
+
+    #[inline]
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
         let iter =
