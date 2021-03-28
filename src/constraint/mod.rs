@@ -129,6 +129,7 @@ pub use irreducible::*;
 /// `(column, row)`.
 pub type Group = Vec<(usize, usize)>;
 
+#[inline]
 pub(crate) fn default_check<C>(this: &C, grid: &SudokuGrid) -> bool
 where
     C: Constraint + ?Sized
@@ -146,6 +147,7 @@ where
     true
 }
 
+#[inline]
 pub(crate) fn default_check_cell<C>(this: &C, grid: &SudokuGrid, column: usize,
     row: usize) -> bool
 where

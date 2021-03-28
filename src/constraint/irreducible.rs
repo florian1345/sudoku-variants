@@ -12,11 +12,13 @@ use std::slice::Iter;
 pub trait IrreducibleConstraint {
 
     /// See [Constraint::check].
+    #[inline]
     fn check(&self, grid: &SudokuGrid) -> bool {
         constraint::default_check(self, grid)
     }
 
     /// See [Constraint::check_cell].
+    #[inline]
     fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
             -> bool {
         constraint::default_check_cell(self, grid, column, row)
@@ -34,21 +36,25 @@ impl<C: IrreducibleConstraint + ?Sized> Constraint for C {
     type Reduction = ();
     type ReverseInfo = ();
 
+    #[inline]
     fn check(&self, grid: &SudokuGrid) -> bool {
         <C as IrreducibleConstraint>::check(self, grid)
     }
 
+    #[inline]
     fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
             -> bool {
         <C as IrreducibleConstraint>::check_cell(self, grid, column, row)
     }
 
+    #[inline]
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
         <C as IrreducibleConstraint>::check_number(self, grid, column, row,
             number)
     }
 
+    #[inline]
     fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
         <C as IrreducibleConstraint>::get_groups(self, grid)
     }
@@ -482,6 +488,8 @@ pub trait RelativeCellConstraint {
 }
 
 impl<C: RelativeCellConstraint> IrreducibleConstraint for C {
+
+    #[inline]
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
         let iter =
