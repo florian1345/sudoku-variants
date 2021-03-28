@@ -129,13 +129,15 @@ pub use irreducible::*;
 /// `(column, row)`.
 pub type Group = Vec<(usize, usize)>;
 
-pub(crate) fn default_check(grid: &SudokuGrid,
-        check_cell: impl Fn(&SudokuGrid, usize, usize) -> bool) -> bool {
+pub(crate) fn default_check<C>(this: &C, grid: &SudokuGrid) -> bool
+where
+    C: Constraint + ?Sized
+{
     let size = grid.size();
 
     for row in 0..size {
         for column in 0..size {
-            if !check_cell(grid, column, row) {
+            if !this.check_cell(grid, column, row) {
                 return false;
             }
         }
@@ -144,11 +146,13 @@ pub(crate) fn default_check(grid: &SudokuGrid,
     true
 }
 
-pub(crate) fn default_check_cell(grid: &SudokuGrid, column: usize, row: usize,
-        check_number: impl Fn(&SudokuGrid, usize, usize, usize) -> bool)
-        -> bool {
+pub(crate) fn default_check_cell<C>(this: &C, grid: &SudokuGrid, column: usize,
+    row: usize) -> bool
+where
+    C: Constraint + ?Sized
+{
     if let Some(number) = grid.get_cell(column, row).unwrap() {
-        check_number(grid, column, row, number)
+        this.check_number(grid, column, row, number)
     }
     else {
         true
@@ -183,7 +187,7 @@ pub trait Constraint {
     /// on every cell of the grid, which may be inefficient, so custom
     /// implementations may be advantageous.
     fn check(&self, grid: &SudokuGrid) -> bool {
-        default_check(grid, |g, c, r| self.check_cell(g, c, r))
+        default_check(self, grid)
     }
 
     /// Checks whether the cell at the given position in the [SudokuGrid]
@@ -192,8 +196,7 @@ pub trait Constraint {
     /// that cell. If the cell is empty, this function always returns `true`.
     fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
             -> bool {
-        default_check_cell(grid, column, row,
-            |g, c, r, n| self.check_number(g, c, r, n))
+        default_check_cell(self, grid, column, row)
     }
 
     /// Checks whether the given `number` would fit into the cell specified by

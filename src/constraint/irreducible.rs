@@ -13,14 +13,13 @@ pub trait IrreducibleConstraint {
 
     /// See [Constraint::check].
     fn check(&self, grid: &SudokuGrid) -> bool {
-        constraint::default_check(grid, |g, c, r| self.check_cell(g, c, r))
+        constraint::default_check(self, grid)
     }
 
     /// See [Constraint::check_cell].
     fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
             -> bool {
-        constraint::default_check_cell(grid, column, row,
-            |g, c, r, n| self.check_number(g, c, r, n))
+        constraint::default_check_cell(self, grid, column, row)
     }
 
     /// See [Constraint::check_number].
@@ -31,26 +30,27 @@ pub trait IrreducibleConstraint {
     fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group>;
 }
 
-impl<C: IrreducibleConstraint> Constraint for C {
+impl<C: IrreducibleConstraint + ?Sized> Constraint for C {
     type Reduction = ();
     type ReverseInfo = ();
 
     fn check(&self, grid: &SudokuGrid) -> bool {
-        IrreducibleConstraint::check(self, grid)
+        <C as IrreducibleConstraint>::check(self, grid)
     }
 
     fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
             -> bool {
-        IrreducibleConstraint::check_cell(self, grid, column, row)
+        <C as IrreducibleConstraint>::check_cell(self, grid, column, row)
     }
 
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
-        IrreducibleConstraint::check_number(self, grid, column, row, number)
+        <C as IrreducibleConstraint>::check_number(self, grid, column, row,
+            number)
     }
 
     fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
-        IrreducibleConstraint::get_groups(self, grid)
+        <C as IrreducibleConstraint>::get_groups(self, grid)
     }
 
     fn reduce(&mut self, _: &()) -> () {
@@ -280,7 +280,7 @@ struct BlockConstraintNoLineColumn;
 
 impl IrreducibleConstraint for BlockConstraintNoLineColumn {
     fn check(&self, grid: &SudokuGrid) -> bool {
-        Constraint::check(&BlockConstraint, grid)
+        <BlockConstraint as Constraint>::check(&BlockConstraint, grid)
     }
 
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
@@ -300,33 +300,40 @@ pub struct DefaultConstraint;
 
 impl IrreducibleConstraint for DefaultConstraint {
     fn check(&self, grid: &SudokuGrid) -> bool {
-        Constraint::check(&RowConstraint, grid) &&
-            Constraint::check(&ColumnConstraint, grid) &&
-            Constraint::check(&BlockConstraintNoLineColumn, grid)
+        <RowConstraint as Constraint>::check(&RowConstraint, grid) &&
+        <ColumnConstraint as Constraint>::check(&ColumnConstraint, grid) &&
+        <BlockConstraintNoLineColumn as Constraint>::check(
+            &BlockConstraintNoLineColumn, grid)
     }
 
     fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
             -> bool {
-        Constraint::check_cell(&RowConstraint, grid, column, row) &&
-            Constraint::check_cell(&ColumnConstraint, grid, column, row) &&
-            Constraint::check_cell(&BlockConstraintNoLineColumn, grid, column,
-                row)
+        <RowConstraint as Constraint>::check_cell(&RowConstraint, grid, column,
+            row) &&
+        <ColumnConstraint as Constraint>::check_cell(&ColumnConstraint, grid,
+            column, row) &&
+        <BlockConstraintNoLineColumn as Constraint>::check_cell(
+            &BlockConstraintNoLineColumn, grid, column, row)
     }
 
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
-        Constraint::check_number(&RowConstraint, grid, column, row, number) &&
-            Constraint::check_number(&ColumnConstraint, grid, column, row,
-                number) &&
-            Constraint::check_number(&BlockConstraintNoLineColumn, grid,
-                column, row, number)
+        <RowConstraint as Constraint>::check_number(&RowConstraint, grid,
+            column, row, number) &&
+        <ColumnConstraint as Constraint>::check_number(&ColumnConstraint, grid,
+            column, row, number) &&
+        <BlockConstraintNoLineColumn as Constraint>::check_number(
+            &BlockConstraintNoLineColumn, grid, column, row, number)
     }
 
     fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group> {
-        let mut groups = Constraint::get_groups(&RowConstraint, grid);
-        groups.append(&mut Constraint::get_groups(&ColumnConstraint, grid));
-        groups.append(&mut Constraint::get_groups(&BlockConstraintNoLineColumn,
-            grid));
+        let mut groups =
+            <RowConstraint as Constraint>::get_groups(&RowConstraint, grid);
+        groups.append(&mut <ColumnConstraint as Constraint>::get_groups(
+            &ColumnConstraint, grid));
+        groups.append(
+            &mut <BlockConstraintNoLineColumn as Constraint>::get_groups(
+                &BlockConstraintNoLineColumn, grid));
         groups
     }
 }
