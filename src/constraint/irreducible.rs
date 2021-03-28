@@ -3,12 +3,22 @@
 //! should not have to `use` anything from this module directly.
 
 use crate::SudokuGrid;
-use crate::constraint::{self, Constraint, Group};
+use crate::constraint::{self, Constraint, Group, ReductionError};
 use crate::util::USizeSet;
 
 use std::iter::Cloned;
 use std::slice::Iter;
 
+/// A trait for all constraints which are not reducible. That is, there is no
+/// way to make this constraint less expressive while remaining correct.
+/// Examples for such constraints are stateless constraints such as the classic
+/// Sudoku constraint, which checks digit uniqueness in each row, column, and
+/// block and therefore cannot be changed in any way, but also stateful
+/// constraints whose state is unique for any given solution, such as an XV
+/// constraint, which only has one valid configuration of X's and V's for any
+/// filled grid. One counterexample is the Killer Sudoku constraint, where
+/// neighboring cages can be merged, as long as they do not contain any
+/// repeating digits, thus making the constraint less expressive.
 pub trait IrreducibleConstraint {
 
     /// See [Constraint::check].
@@ -34,7 +44,7 @@ pub trait IrreducibleConstraint {
 
 impl<C: IrreducibleConstraint + ?Sized> Constraint for C {
     type Reduction = ();
-    type ReverseInfo = ();
+    type RevertInfo = ();
 
     #[inline]
     fn check(&self, grid: &SudokuGrid) -> bool {
@@ -59,13 +69,16 @@ impl<C: IrreducibleConstraint + ?Sized> Constraint for C {
         <C as IrreducibleConstraint>::get_groups(self, grid)
     }
 
-    fn reduce(&mut self, _: &()) -> () {
-        panic!("Irreducible constraint was asked to reduce.")
+    fn list_reductions(&self, _: &SudokuGrid) -> Vec<Self::Reduction> {
+        Vec::new()
     }
 
-    fn reverse(&mut self, _: &(), _: &()) {
-        panic!("Irreducible constraint was asked to revert reduction.")
+    fn reduce(&mut self, _: &SudokuGrid, _: &())
+            -> Result<(), ReductionError> {
+        Err(ReductionError::InvalidReduction)
     }
+
+    fn revert(&mut self, _: &SudokuGrid, _: &(), _: &()) { }
 }
 
 /// A [Constraint] that there are no duplicates in each row.

@@ -5,7 +5,7 @@
 //! so you should not have to `use` anything from this module directly.
 
 use crate::SudokuGrid;
-use crate::constraint::{Constraint, Group};
+use crate::constraint::{Constraint, Group, ReductionError};
 
 use std::any::Any;
 
@@ -63,8 +63,13 @@ where
     }
 }
 
+/// Data of one of two types `D1` and `D2`.
 pub enum CompositeData<D1, D2> {
+
+    /// Data of the first type.
     First(D1),
+
+    /// Data of the second type.
     Second(D2)
 }
 
@@ -74,7 +79,7 @@ where
     C2: Constraint + Clone + 'static
 {
     type Reduction = CompositeData<C1::Reduction, C2::Reduction>;
-    type ReverseInfo = CompositeData<C1::ReverseInfo, C2::ReverseInfo>;
+    type RevertInfo = CompositeData<C1::RevertInfo, C2::RevertInfo>;
 
     fn check(&self, grid: &SudokuGrid) -> bool {
         self.c1.check(grid) && self.c2.check(grid)
@@ -98,29 +103,43 @@ where
         groups
     }
 
-    fn reduce(&mut self, reduction: &Self::Reduction) -> Self::ReverseInfo {
+    fn list_reductions(&self, solution: &SudokuGrid) -> Vec<Self::Reduction> {
+        let mut r1: Vec<Self::Reduction> = self.c1.list_reductions(solution)
+            .into_iter()
+            .map(|r| CompositeData::First(r))
+            .collect();
+        let mut r2: Vec<Self::Reduction> = self.c2.list_reductions(solution)
+            .into_iter()
+            .map(|r| CompositeData::Second(r))
+            .collect();
+        r1.append(&mut r2);
+        r1
+    }
+
+    fn reduce(&mut self, solution: &SudokuGrid, reduction: &Self::Reduction)
+            -> Result<Self::RevertInfo, ReductionError> {
         match reduction {
             CompositeData::First(reduction) =>
-                CompositeData::First(self.c1.reduce(reduction)),
+                Ok(CompositeData::First(self.c1.reduce(solution, reduction)?)),
             CompositeData::Second(reduction) =>
-                CompositeData::Second(self.c2.reduce(reduction))
+                Ok(CompositeData::Second(self.c2.reduce(solution, reduction)?))
         }
     }
 
-    fn reverse(&mut self, reduction: &Self::Reduction,
-            reverse_info: &Self::ReverseInfo) {
+    fn revert(&mut self, solution: &SudokuGrid, reduction: &Self::Reduction,
+            revert_info: &Self::RevertInfo) {
         match reduction {
             CompositeData::First(reduction) => {
-                if let CompositeData::First(reverse_info) = reverse_info {
-                    self.c1.reverse(reduction, reverse_info)
+                if let CompositeData::First(revert_info) = revert_info {
+                    self.c1.revert(solution, reduction, revert_info)
                 }
                 else {
                     panic!("Incompatible reduction and reverse info provided.")
                 }
             },
             CompositeData::Second(reduction) => {
-                if let CompositeData::Second(reverse_info) = reverse_info {
-                    self.c2.reverse(reduction, reverse_info)
+                if let CompositeData::Second(revert_info) = revert_info {
+                    self.c2.revert(solution, reduction, revert_info)
                 }
                 else {
                     panic!("Incompatible reduction and reverse info provided.")
@@ -135,7 +154,7 @@ where
 /// to implement this trait manually, as it is automatically implemented for
 /// all `Constraint`s that implement [Clone] (and have static lifetime).
 trait CloneConstraint :
-        Constraint<Reduction = Box<dyn Any>, ReverseInfo = Box<dyn Any>> {
+        Constraint<Reduction = Box<dyn Any>, RevertInfo = Box<dyn Any>> {
 
     /// Clones a trait object of this constraint.
     fn clone_box(&self) -> Box<dyn CloneConstraint>;
@@ -156,7 +175,7 @@ impl<C: Constraint + Clone + 'static> From<C> for WrappedConstraint<C> {
 
 impl<C: Constraint + Clone + 'static> Constraint for WrappedConstraint<C> {
     type Reduction = Box<dyn Any>;
-    type ReverseInfo = Box<dyn Any>;
+    type RevertInfo = Box<dyn Any>;
 
     fn check(&self, grid: &SudokuGrid) -> bool {
         self.constraint.check(grid)
@@ -176,20 +195,30 @@ impl<C: Constraint + Clone + 'static> Constraint for WrappedConstraint<C> {
         self.constraint.get_groups(grid)
     }
 
-    fn reduce(&mut self, reduction: &Box<dyn Any>) -> Box<dyn Any> {
-        let reduction: &C::Reduction = reduction.downcast_ref()
-            .expect("Reduction has wrong type.");
-        let reverse_info = self.constraint.reduce(reduction);
-        Box::new(reverse_info)
+    fn list_reductions(&self, solution: &SudokuGrid) -> Vec<Box<dyn Any>> {
+        self.constraint.list_reductions(solution).into_iter()
+            .map(|r| {
+                let r_any: Box<dyn Any> = Box::new(r);
+                r_any
+            })
+            .collect()
     }
 
-    fn reverse(&mut self, reduction: &Self::Reduction,
-            reverse_info: &Self::ReverseInfo) {
+    fn reduce(&mut self, solution: &SudokuGrid, reduction: &Box<dyn Any>)
+            -> Result<Box<dyn Any>, ReductionError> {
         let reduction: &C::Reduction = reduction.downcast_ref()
             .expect("Reduction has wrong type.");
-        let reverse_info: &C::ReverseInfo = reverse_info.downcast_ref()
-            .expect("Reverse info has wrong type.");
-        self.constraint.reverse(reduction, reverse_info);
+        let reverse_info = self.constraint.reduce(solution, reduction)?;
+        Ok(Box::new(reverse_info))
+    }
+
+    fn revert(&mut self, solution: &SudokuGrid, reduction: &Self::Reduction,
+            revert_info: &Self::RevertInfo) {
+        let reduction: &C::Reduction = reduction.downcast_ref()
+            .expect("Reduction has wrong type.");
+        let revert_info: &C::RevertInfo = revert_info.downcast_ref()
+            .expect("Revert info has wrong type.");
+        self.constraint.revert(solution, reduction, revert_info);
     }
 }
 
@@ -199,20 +228,6 @@ where
 {
     fn clone_box(&self) -> Box<dyn CloneConstraint> {
         Box::new(self.clone())
-    }
-}
-
-pub struct IndexedAny {
-    index: usize,
-    data: Box<dyn Any>
-}
-
-impl IndexedAny {
-    pub fn new(index: usize, data: Box<dyn Any>) -> IndexedAny {
-        IndexedAny {
-            index,
-            data
-        }
     }
 }
 
@@ -243,8 +258,8 @@ impl DynamicConstraint {
 
 impl Constraint for DynamicConstraint {
 
-    type Reduction = IndexedAny;
-    type ReverseInfo = Box<dyn Any>;
+    type Reduction = (usize, Box<dyn Any>);
+    type RevertInfo = Box<dyn Any>;
 
     fn check(&self, grid: &SudokuGrid) -> bool {
         self.constraints.iter().all(|c| c.check(grid))
@@ -267,18 +282,28 @@ impl Constraint for DynamicConstraint {
             .collect()
     }
 
-    fn reduce(&mut self, reduction: &IndexedAny) -> Box<dyn Any> {
-        let index = reduction.index;
-        let constraint = self.constraints.get_mut(index)
-            .expect("Reduction had invalid index.");
-        constraint.reduce(&reduction.data)
+    fn list_reductions(&self, solution: &SudokuGrid) -> Vec<(usize, Box<dyn Any>)> {
+        self.constraints.iter()
+            .enumerate()
+            .flat_map(|(i, c)| c.list_reductions(solution).into_iter()
+                .map(move |r| (i, r)))
+            .collect()
     }
 
-    fn reverse(&mut self, reduction: &IndexedAny, reverse_info: &Box<dyn Any>) {
-        let index = reduction.index;
-        let constraint = self.constraints.get_mut(index)
+    fn reduce(&mut self, solution: &SudokuGrid,
+            (index, data): &(usize, Box<dyn Any>))
+            -> Result<Box<dyn Any>, ReductionError> {
+        let constraint = self.constraints.get_mut(*index)
             .expect("Reduction had invalid index.");
-        constraint.reverse(&reduction.data, reverse_info);
+        constraint.reduce(solution, data)
+    }
+
+    fn revert(&mut self, solution: &SudokuGrid,
+            (index, data): &(usize, Box<dyn Any>),
+            revert_info: &Box<dyn Any>) {
+        let constraint = self.constraints.get_mut(*index)
+            .expect("Reduction had invalid index.");
+        constraint.revert(solution, data, revert_info);
     }
 }
 
