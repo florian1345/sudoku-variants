@@ -853,9 +853,14 @@ impl<C: Constraint + Clone> Sudoku<C> {
         &mut self.grid
     }
 
-    /// Gets a reference to the `Constraint` of this Sudoku.
+    /// Gets a reference to the [Constraint] of this Sudoku.
     pub fn constraint(&self) -> &C {
         &self.constraint
+    }
+
+    /// Gets a mutable reference to the [Constraint] of this Sudoku.
+    pub fn constraint_mut(&mut self) -> &mut C {
+        &mut self.constraint
     }
 
     /// Indicates whether the entire grid matches the constraint.

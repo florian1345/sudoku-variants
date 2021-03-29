@@ -61,6 +61,28 @@ where
             c2
         }
     }
+
+    /// Gets the first constraint that is part of this composite constraint.
+    pub fn first(&self) -> &C1 {
+        &self.c1
+    }
+
+    /// Gets a mutable reference to the first constraint that is part of this
+    /// composite constraint.
+    pub fn first_mut(&mut self) -> &mut C1 {
+        &mut self.c1
+    }
+
+    /// Gets the second constraint that is part of this composite constraint.
+    pub fn second(&self) -> &C2 {
+        &self.c2
+    }
+
+    /// Gets a mutable reference to the second constraint that is part of this
+    /// composite constraint.
+    pub fn second_mut(&mut self) -> &mut C2 {
+        &mut self.c2
+    }
 }
 
 /// Data of one of two types `D1` and `D2`.
