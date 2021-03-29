@@ -3,13 +3,15 @@
 //! Generation of Sudoku puzzles is done by first generating a full grid with a
 //! [Generator] and then removing some clues using a [Reducer].
 
-use crate::Sudoku;
+use crate::{Sudoku, SudokuGrid};
 use crate::constraint::Constraint;
 use crate::error::{SudokuError, SudokuResult};
 use crate::solver::{BacktrackingSolver, Solution, Solver};
 
 use rand::Rng;
 use rand::rngs::ThreadRng;
+
+use std::marker::PhantomData;
 
 /// A generator randomly generates a full [Sudoku], that is, a Sudoku with no
 /// missing digits. It uses a random number generator to decide the content.
@@ -135,6 +137,66 @@ impl Reducer<BacktrackingSolver, ThreadRng> {
     }
 }
 
+enum Reduction<R, C: Constraint<Reduction = R> + Clone> {
+    RemoveDigit {
+        column: usize,
+        row: usize
+    },
+    ReduceConstraint {
+        reduction: R,
+        constraint: PhantomData<C>
+    }
+}
+
+impl<R, C: Constraint<Reduction = R> + Clone> Reduction<R, C> {
+    fn apply<S: Solver>(&self, sudoku: &mut Sudoku<C>, solution: &SudokuGrid,
+            solver: &S) {
+        match self {
+            Reduction::RemoveDigit { column, row } => {
+                let number = sudoku.grid().get_cell(*column, *row).unwrap()
+                    .unwrap();
+                sudoku.grid_mut().clear_cell(*column, *row).unwrap();
+
+                if let Solution::Unique(_) = solver.solve(sudoku) { }
+                else {
+                    sudoku.grid_mut().set_cell(*column, *row, number).unwrap();
+                }
+            },
+            Reduction::ReduceConstraint { reduction: r, constraint: _ } => {
+                let constraint = sudoku.constraint_mut();
+                let reduce_res = constraint.reduce(&solution, r);
+                
+                if let Ok(revert_info) = reduce_res {
+                    if let Solution::Unique(_) = solver.solve(sudoku) { }
+                    else {
+                        let constraint = sudoku.constraint_mut();
+                        constraint.revert(solution, r, &revert_info);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn reductions<R, C: Constraint<Reduction = R> + Clone>(sudoku: &Sudoku<C>)
+        -> impl Iterator<Item = Reduction<R, C>> {
+    let size = sudoku.grid().size();
+    let digit_reductions = (0..size)
+        .flat_map(move |column| (0..size)
+            .map(move |row| Reduction::RemoveDigit {
+                column,
+                row
+            }));
+    let constraint_reductions = sudoku.constraint()
+        .list_reductions(sudoku.grid())
+        .into_iter()
+        .map(|r| Reduction::ReduceConstraint {
+            reduction: r,
+            constraint: PhantomData
+        });
+    digit_reductions.chain(constraint_reductions)
+}
+
 impl<S: Solver, R: Rng> Reducer<S, R> {
 
     /// Creates a new reducer with the given solver and random number gnerator.
@@ -157,21 +219,15 @@ impl<S: Solver, R: Rng> Reducer<S, R> {
     /// digits until all remaining ones are necessary for the solver used by
     /// this reducer to still be able to solve the Sudoku. All changes are done
     /// to the given mutable Sudoku.
+    ///
+    /// It is expected that the given `sudoku` is full, i.e. contains no empty
+    /// cells.
     pub fn reduce<C: Constraint + Clone>(&mut self, sudoku: &mut Sudoku<C>) {
-        let size = sudoku.grid().size();
-        let coords= (0..size)
-            .flat_map(|column| (0..size).map(move |row| (column, row)));
+        let reductions = reductions(sudoku);
+        let solution = sudoku.grid().clone();
 
-        for (column, row) in shuffle(&mut self.rng, coords) {
-            if let Some(number) =
-                    sudoku.grid().get_cell(column, row).unwrap() {
-                sudoku.grid_mut().clear_cell(column, row).unwrap();
-
-                if let Solution::Unique(_) = self.solver.solve(sudoku) { }
-                else {
-                    sudoku.grid_mut().set_cell(column, row, number).unwrap();
-                }
-            }
+        for reduction in shuffle(&mut self.rng, reductions) {
+            reduction.apply(sudoku, &solution, &self.solver);
         }
     }
 }
@@ -181,7 +237,12 @@ mod tests {
 
     use super::*;
 
-    use crate::constraint::DefaultConstraint;
+    use crate::constraint::{
+        CompositeConstraint,
+        DefaultConstraint,
+        Group,
+        ReductionError
+    };
 
     const DEFAULT_BLOCK_WIDTH: usize = 3;
     const DEFAULT_BLOCK_HEIGHT: usize = 3;
@@ -336,5 +397,203 @@ mod tests {
             "Reduced Sudoku missing too many clues or not reduced at all.");
         assert_eq!(None, sudoku.grid().get_cell(0, 0).unwrap(),
             "Reduced Sudoku missing wrong clue.");
+    }
+
+    /// A constraint which may or may not encode the sum of the digits on the
+    /// main diagonal and the anti diagonal.
+    #[derive(Clone)]
+    struct DiagonalSumConstraint {
+        main_sum: Option<usize>,
+        anti_sum: Option<usize>
+    }
+
+    impl DiagonalSumConstraint {
+        fn new(grid: &SudokuGrid) -> DiagonalSumConstraint {
+            let main_sum = Diagonal::Main.get_sum(grid);
+            let anti_sum = Diagonal::Anti.get_sum(grid);
+
+            DiagonalSumConstraint {
+                main_sum: Some(main_sum),
+                anti_sum: Some(anti_sum)
+            }
+        }
+    }
+
+    enum Diagonal {
+        Main,
+        Anti
+    }
+
+    fn diagonal_sum(grid: &SudokuGrid, row_computer: impl Fn(usize) -> usize)
+            -> usize {
+        let size = grid.size();
+        let mut sum = 0usize;
+
+        for i in 0..size {
+            let row = row_computer(i);
+
+            if let Some(n) = grid.get_cell(i, row).unwrap() {
+                sum += n;
+            }
+        }
+
+        sum
+    }
+
+    impl Diagonal {
+        fn get_sum(&self, grid: &SudokuGrid) -> usize {
+            match self {
+                Diagonal::Main => diagonal_sum(grid, |i| i),
+                Diagonal::Anti => {
+                    let size = grid.size();
+                    diagonal_sum(grid, |i| size - i - 1)
+                }
+            }
+        }
+    }
+
+    impl Constraint for DiagonalSumConstraint {
+        type Reduction = Diagonal;
+        type RevertInfo = usize;
+
+        fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize, number: usize) -> bool {
+            let size = grid.size();
+            let content = grid.get_cell(column, row).unwrap().unwrap_or(0);
+
+            if column == row {
+                // cell is on main diagonal
+
+                if let Some(main_sum) = self.main_sum {
+                    let sum = Diagonal::Main.get_sum(grid) - content + number;
+
+                    if sum > main_sum {
+                        return false;
+                    }
+                }
+            }
+
+            if column == size - row - 1 {
+                // cell is on anti diagonal
+
+                if let Some(anti_sum) = self.anti_sum {
+                    let sum = Diagonal::Anti.get_sum(grid) - content + number;
+
+                    if sum > anti_sum {
+                        return false;
+                    }
+                }
+            }
+
+            true
+        }
+
+        fn get_groups(&self, _: &SudokuGrid) -> Vec<Group> {
+            Vec::new()
+        }
+
+        fn list_reductions(&self, _: &SudokuGrid) -> Vec<Diagonal> {
+            let mut v = Vec::new();
+
+            if self.main_sum.is_some() {
+                v.push(Diagonal::Main);
+            }
+
+            if self.anti_sum.is_some() {
+                v.push(Diagonal::Anti);
+            }
+
+            v
+        }
+
+        fn reduce(&mut self, _: &SudokuGrid, reduction: &Diagonal)
+                -> Result<usize, ReductionError> {
+            match reduction {
+                Diagonal::Main =>
+                    self.main_sum.take()
+                        .ok_or(ReductionError::InvalidReduction),
+                Diagonal::Anti =>
+                    self.anti_sum.take()
+                        .ok_or(ReductionError::InvalidReduction),
+            }
+        }
+
+        fn revert(&mut self, _: &SudokuGrid, reduction: &Diagonal,
+                sum: &usize) {
+            match reduction {
+                Diagonal::Main =>
+                    self.main_sum = Some(*sum),
+                Diagonal::Anti =>
+                    self.anti_sum = Some(*sum),
+            }
+        }
+    }
+
+    type DiagonalSumSudoku = Sudoku<CompositeConstraint<DefaultConstraint,
+        DiagonalSumConstraint>>;
+
+    fn generate_diagonal_sum_sudoku() -> DiagonalSumSudoku {
+        let mut generator = Generator::new_default();
+        let sudoku = generator.generate(2, 2, DefaultConstraint).unwrap();
+        let constraint =
+            CompositeConstraint::new(
+                DefaultConstraint,
+                DiagonalSumConstraint::new(sudoku.grid()));
+        let mut sudoku =
+            Sudoku::new_with_grid(sudoku.grid().clone(), constraint);
+        let mut reducer = Reducer::new(BacktrackingSolver, rand::thread_rng());
+        reducer.reduce(&mut sudoku);
+        sudoku
+    }
+
+    fn assert_any_generated_diagonal_sum_sudoku_matches(limit: usize,
+            predicate: impl Fn(DiagonalSumSudoku) -> bool) {
+        for _ in 0..limit {
+            if predicate(generate_diagonal_sum_sudoku()) {
+                return;
+            }
+        }
+
+        panic!("No genrated Sudoku matched predicate.");
+    }
+
+    #[test]
+    fn constraint_is_reduced_maintaining_solveability() {
+        let solver = BacktrackingSolver;
+
+        assert_any_generated_diagonal_sum_sudoku_matches(100, |s| {
+            let constraint = s.constraint().second();
+
+            if constraint.main_sum.is_some() && constraint.anti_sum.is_some() {
+                return false;
+            }
+
+            if let Solution::Unique(_) = solver.solve(&s) {
+                return true;
+            }
+
+            panic!("Reduced Sudoku was not uniquely solveable.")
+        })
+    }
+
+    #[test]
+    fn constraint_is_relevant() {
+        let solver = BacktrackingSolver;
+
+        assert_any_generated_diagonal_sum_sudoku_matches(100, |mut s| {
+            let constraint = s.constraint_mut().second_mut();
+
+            if constraint.main_sum.is_none() && constraint.anti_sum.is_none() {
+                return false;
+            }
+
+            constraint.main_sum.take();
+            constraint.anti_sum.take();
+
+            if let Solution::Unique(_) = solver.solve(&s) {
+                panic!("Not all possible reductions were made.")
+            }
+
+            true
+        })
     }
 }
