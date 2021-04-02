@@ -2,6 +2,8 @@
 //! prominently, it contains the definition of the [USizeSet] used for storing
 //! cell options for strategies.
 
+use std::collections::HashSet;
+use std::hash::Hash;
 use std::mem;
 use std::ops::{
     BitAnd,
@@ -682,6 +684,20 @@ impl BitXorAssign<&USizeSet> for &mut USizeSet {
     }
 }
 
+/// Determines whether the given iterator contains at least two equal elements
+/// as defined by the [Eq](std::cmp::Eq) trait. The duplication detection is
+/// implemented with a [HashSet](std::collections::HashSet), so it is required
+/// that the item type implements the [Hash](std::hash::Hash) trait in a
+/// consistent way.
+pub(crate) fn contains_duplicate<I>(mut iter: I) -> bool
+where
+    I: Iterator,
+    I::Item: Hash + Eq
+{
+    let mut set = HashSet::new();
+    iter.any(|e| !set.insert(e))
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -869,5 +885,19 @@ mod tests {
         let result = op_test_lhs() ^ &op_test_rhs();
         let expected = set!(1, 4; 2, 3);
         assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn contains_duplicate_false() {
+        let vec = vec![1, 5, 2, 4, 3];
+        assert!(!contains_duplicate(vec.iter()));
+        assert!(!contains_duplicate(vec.iter().map(|i| i.to_string())));
+    }
+
+    #[test]
+    fn contains_duplicate_true() {
+        let vec = vec![1, 5, 2, 4, 5];
+        assert!(contains_duplicate(vec.iter()));
+        assert!(contains_duplicate(vec.iter().map(|i| i.to_string())));
     }
 }

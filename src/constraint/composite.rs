@@ -149,7 +149,7 @@ where
     }
 
     fn revert(&mut self, solution: &SudokuGrid, reduction: &Self::Reduction,
-            revert_info: &Self::RevertInfo) {
+            revert_info: Self::RevertInfo) {
         match reduction {
             CompositeData::First(reduction) => {
                 if let CompositeData::First(revert_info) = revert_info {
@@ -235,10 +235,10 @@ impl<C: Constraint + Clone + 'static> Constraint for WrappedConstraint<C> {
     }
 
     fn revert(&mut self, solution: &SudokuGrid, reduction: &Self::Reduction,
-            revert_info: &Self::RevertInfo) {
+            revert_info: Self::RevertInfo) {
         let reduction: &C::Reduction = reduction.downcast_ref()
             .expect("Reduction has wrong type.");
-        let revert_info: &C::RevertInfo = revert_info.downcast_ref()
+        let revert_info: C::RevertInfo = *revert_info.downcast()
             .expect("Revert info has wrong type.");
         self.constraint.revert(solution, reduction, revert_info);
     }
@@ -322,7 +322,7 @@ impl Constraint for DynamicConstraint {
 
     fn revert(&mut self, solution: &SudokuGrid,
             (index, data): &(usize, Box<dyn Any>),
-            revert_info: &Box<dyn Any>) {
+            revert_info: Box<dyn Any>) {
         let constraint = self.constraints.get_mut(*index)
             .expect("Reduction had invalid index.");
         constraint.revert(solution, data, revert_info);

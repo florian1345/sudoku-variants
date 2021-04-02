@@ -140,6 +140,8 @@ mod tests {
         DefaultConstraint,
         DiagonalsConstraint,
         DiagonallyAdjacentConstraint,
+        KillerCage,
+        KillerConstraint,
         KingsMoveConstraint,
         KnightsMoveConstraint
     };
@@ -178,6 +180,10 @@ mod tests {
     // No Adjacent Consecutive: GP 2019 Round 1 (Puzzle 7)
     // Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2019/2019_SudokuRound1.pdf
     // Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2019/2019_SudokuRound1_SB.pdf
+
+    // Killer: GP 2015 Round 8 (Puzzle 10)
+    // Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound8.pdf
+    // Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound8_SB.pdf
 
     #[test]
     fn backtracking_solves_classic_sudoku() {
@@ -312,5 +318,55 @@ mod tests {
             5,9,4,2,6,8,1,7,3";
         test_solves_correctly(puzzle, solution,CompositeConstraint::new(
             DefaultConstraint, AdjacentConsecutiveConstraint));
+    }
+
+    #[test]
+    fn backtracking_solves_killer_sudoku() {
+        let puzzle = "3x3;\
+             ,9, , , , , , , ,\
+             , , , , , , , ,6,\
+             , , , , , , , , ,\
+             , , , ,7, , , , ,\
+             , , ,3, ,4, , , ,\
+             , , , ,9, , , , ,\
+             , , , , , , , , ,\
+            2, , , , , , , , ,\
+             , , , , , , ,9, ";
+        let solution = "3x3;\
+            8,9,7,6,4,1,5,2,3,\
+            5,2,1,9,8,3,4,7,6,\
+            6,4,3,7,5,2,1,8,9,\
+            1,3,2,8,7,6,9,5,4,\
+            9,8,5,3,2,4,7,6,1,\
+            7,6,4,1,9,5,2,3,8,\
+            4,7,9,2,6,8,3,1,5,\
+            2,1,6,5,3,9,8,4,7,\
+            3,5,8,4,1,7,6,9,2";
+        let mut constraint = KillerConstraint::new();
+        let cages = vec![
+            KillerCage::new(vec![(2, 0), (2, 1), (1, 1)], 10).unwrap(),
+            KillerCage::new(vec![(3, 0), (3, 1), (4, 1)], 23).unwrap(),
+            KillerCage::new(vec![(6, 1), (6, 2), (5, 2)], 7).unwrap(),
+            KillerCage::new(vec![(7, 1), (7, 2), (8, 2)], 24).unwrap(),
+            KillerCage::new(vec![(1, 2), (2, 2), (2, 3)], 9).unwrap(),
+            KillerCage::new(vec![(3, 2), (4, 2), (3, 3)], 20).unwrap(),
+            KillerCage::new(vec![(5, 3), (6, 3), (6, 4)], 22).unwrap(),
+            KillerCage::new(vec![(7, 3), (8, 3), (7, 4)], 15).unwrap(),
+            KillerCage::new(vec![(1, 4), (1, 5), (0, 5)], 21).unwrap(),
+            KillerCage::new(vec![(2, 4), (2, 5), (3, 5)], 10).unwrap(),
+            KillerCage::new(vec![(5, 5), (5, 6), (4, 6)], 19).unwrap(),
+            KillerCage::new(vec![(6, 5), (6, 6), (7, 6)], 6).unwrap(),
+            KillerCage::new(vec![(0, 6), (1, 6), (1, 7)], 12).unwrap(),
+            KillerCage::new(vec![(2, 6), (3, 6), (2, 7)], 17).unwrap(),
+            KillerCage::new(vec![(4, 7), (5, 7), (5, 8)], 19).unwrap(),
+            KillerCage::new(vec![(6, 7), (7, 7), (6, 8)], 18).unwrap()
+        ];
+
+        for cage in cages.into_iter() {
+            constraint.add_cage(cage).unwrap();
+        }
+
+        test_solves_correctly(puzzle, solution, CompositeConstraint::new(
+            DefaultConstraint, constraint));
     }
 }
