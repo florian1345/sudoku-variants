@@ -78,7 +78,7 @@ impl<C: IrreducibleConstraint + ?Sized> Constraint for C {
         Err(ReductionError::InvalidReduction)
     }
 
-    fn revert(&mut self, _: &SudokuGrid, _: &(), _: &()) { }
+    fn revert(&mut self, _: &SudokuGrid, _: &(), _: ()) { }
 }
 
 /// A [Constraint] that there are no duplicates in each row.

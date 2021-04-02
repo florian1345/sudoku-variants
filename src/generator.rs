@@ -170,7 +170,7 @@ impl<R, C: Constraint<Reduction = R> + Clone> Reduction<R, C> {
                     if let Solution::Unique(_) = solver.solve(sudoku) { }
                     else {
                         let constraint = sudoku.constraint_mut();
-                        constraint.revert(solution, r, &revert_info);
+                        constraint.revert(solution, r, revert_info);
                     }
                 }
             }
@@ -241,8 +241,15 @@ mod tests {
         CompositeConstraint,
         DefaultConstraint,
         Group,
+        KillerConstraint,
         ReductionError
     };
+    use crate::solver::strategy::{
+        CompositeStrategy,
+        NakedSingleStrategy,
+        OnlyCellStrategy
+    };
+    use crate::solver::strategy::solvers::StrategicBacktrackingSolver;
 
     const DEFAULT_BLOCK_WIDTH: usize = 3;
     const DEFAULT_BLOCK_HEIGHT: usize = 3;
@@ -334,6 +341,30 @@ mod tests {
         }
     }
 
+    fn fast_solver() -> impl Solver {
+        let strategy =
+            CompositeStrategy::new(NakedSingleStrategy, OnlyCellStrategy);
+        StrategicBacktrackingSolver::new(strategy)
+    }
+
+    #[test]
+    fn reduced_killer_sudoku_uniquely_solveable() {
+        let mut generator = Generator::new_default();
+        let sudoku = generator.generate(3, 3,
+            DefaultConstraint).unwrap();
+        let solution = sudoku.grid();
+        let killer_constraint =
+            KillerConstraint::new_singletons(solution);
+        let mut sudoku = Sudoku::new_with_grid(solution.clone(),
+            CompositeConstraint::new(DefaultConstraint, killer_constraint));
+        let mut reducer = Reducer::new(fast_solver(), rand::thread_rng());
+        reducer.reduce(&mut sudoku);
+        let solver = fast_solver();
+
+        assert!(sudoku.constraint().second().cages().len() < 81);
+        assert_eq!(Solution::Unique(solution.clone()), solver.solve(&sudoku));
+    }
+
     /// This is a deliberately bad solver which only checks differet options
     /// for the top-left cell of each Sudoku. If any other cells are missing,
     /// or there are multiple options for the top-left cell, the solver returns
@@ -399,8 +430,8 @@ mod tests {
             "Reduced Sudoku missing wrong clue.");
     }
 
-    /// A constraint which may or may not encode the sum of the digits on the
-    /// main diagonal and the anti diagonal.
+    /// A constraint which may or may not encode the maximum sum of the digits
+    /// on the main diagonal and the anti diagonal.
     #[derive(Clone)]
     struct DiagonalSumConstraint {
         main_sum: Option<usize>,
@@ -518,12 +549,12 @@ mod tests {
         }
 
         fn revert(&mut self, _: &SudokuGrid, reduction: &Diagonal,
-                sum: &usize) {
+                sum: usize) {
             match reduction {
                 Diagonal::Main =>
-                    self.main_sum = Some(*sum),
+                    self.main_sum = Some(sum),
                 Diagonal::Anti =>
-                    self.anti_sum = Some(*sum),
+                    self.anti_sum = Some(sum),
             }
         }
     }

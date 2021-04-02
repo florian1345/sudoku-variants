@@ -124,9 +124,11 @@ use crate::SudokuGrid;
 
 pub mod composite;
 pub mod irreducible;
+pub mod reducible;
 
 pub use composite::*;
 pub use irreducible::*;
+pub use reducible::*;
 
 /// A group of cells, represented by a vector of their coordinates in the form
 /// `(column, row)`.
@@ -262,7 +264,8 @@ pub trait Constraint {
     /// there should be no reductions that become available in a more reduced
     /// state. That is, no matter how often [Constraint::reduce] is called on
     /// valid reductions, this method should only output reductions already
-    /// contained in the original list.
+    /// contained in the original list. Also, not all reductions returned by
+    /// this method have to be valid, but all valid ones must be contained.
     fn list_reductions(&self, solution: &SudokuGrid) -> Vec<Self::Reduction>;
 
     /// Attempts to reduce this constraint by the given reduction. That is,
@@ -290,5 +293,5 @@ pub trait Constraint {
     /// was called for this reduction. The `solution` to the Sudoku this
     /// constraint applies to is also provided.
     fn revert(&mut self, solution: &SudokuGrid, reduction: &Self::Reduction,
-        revert_info: &Self::RevertInfo);
+        revert_info: Self::RevertInfo);
 }
