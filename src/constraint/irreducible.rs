@@ -6,6 +6,8 @@ use crate::SudokuGrid;
 use crate::constraint::{self, Constraint, Group, ReductionError};
 use crate::util::USizeSet;
 
+use serde::{Deserialize, Serialize};
+
 use std::iter::Cloned;
 use std::slice::Iter;
 
@@ -82,7 +84,7 @@ impl<C: IrreducibleConstraint + ?Sized> Constraint for C {
 }
 
 /// A [Constraint] that there are no duplicates in each row.
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct RowConstraint;
 
 impl IrreducibleConstraint for RowConstraint {
@@ -138,7 +140,7 @@ impl IrreducibleConstraint for RowConstraint {
 }
 
 /// A [Constraint] that there are no duplicates in each column.
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct ColumnConstraint;
 
 impl IrreducibleConstraint for ColumnConstraint {
@@ -245,7 +247,7 @@ fn get_groups_block(grid: &SudokuGrid) -> Vec<Group> {
 }
 
 /// A [Constraint] that there are no duplicates in each block.
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct BlockConstraint;
 
 impl IrreducibleConstraint for BlockConstraint {
@@ -294,7 +296,7 @@ impl IrreducibleConstraint for BlockConstraint {
 
 /// Similar to [BlockConstraint], but does not check numbers in the same row
 /// and column to save some time. For use in the [DefaultConstraint].
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 struct BlockConstraintNoLineColumn;
 
 impl IrreducibleConstraint for BlockConstraintNoLineColumn {
@@ -314,7 +316,7 @@ impl IrreducibleConstraint for BlockConstraintNoLineColumn {
 
 /// The default Sudoku [Constraint] which is a logical conjunction of
 /// [RowConstraint], [ColumnConstraint], and [BlockConstraint].
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct DefaultConstraint;
 
 impl IrreducibleConstraint for DefaultConstraint {
@@ -359,7 +361,7 @@ impl IrreducibleConstraint for DefaultConstraint {
 
 /// A [Constraint] which checks that there are no duplicates in each of the two
 /// diagonals ( ╲ and ╱ ).
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct DiagonalsConstraint;
 
 impl IrreducibleConstraint for DiagonalsConstraint {
@@ -543,7 +545,7 @@ impl<C: RelativeCellConstraint> IrreducibleConstraint for C {
 /// │   │ X │   │ X │   │
 /// └───┴───┴───┴───┴───┘
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct KnightsMoveConstraint;
 
 const KNIGHTS_MOVES: [(isize, isize); 8] = [
@@ -567,7 +569,7 @@ impl RelativeCellConstraint for KnightsMoveConstraint {
 /// Sudoku rules apply, since orthogonally adjacent cells are either in the
 /// same row or column as the reference cell. In that case, using the
 /// [DiagonallyAdjacentConstraint] is more efficient and has the same effect.
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct KingsMoveConstraint;
 
 const KINGS_MOVES: [(isize, isize); 8] = [
@@ -601,7 +603,7 @@ impl RelativeCellConstraint for KingsMoveConstraint {
 /// │ X │   │ X │
 /// └───┴───┴───┘
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct DiagonallyAdjacentConstraint;
 
 const DIAGONALLY_ADJACENT: [(isize, isize); 4] = [
@@ -629,7 +631,7 @@ impl RelativeCellConstraint for DiagonallyAdjacentConstraint {
 /// │   │ X │   │
 /// └───┴───┴───┘
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct AdjacentConsecutiveConstraint;
 
 const ORTHOGONALLY_ADJACENT: [(isize, isize); 4] = [

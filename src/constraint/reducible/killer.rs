@@ -9,12 +9,16 @@ use crate::constraint::{Constraint, Group, ReductionError};
 use crate::error::SudokuResult;
 use crate::util::{self, USizeSet};
 
+use serde::{Deserialize, Serialize};
+
 use std::collections::{HashMap, HashSet};
+
+// TODO make Deserialize implementations safe (raise errors)
 
 /// A single cage in a Killer Sudoku, which contains some cells and annotates
 /// the sum of digits in these cells. Additionally, it requires that no digits
 /// repeat in this cage.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct KillerCage {
     group: Group,
     sum: usize
@@ -156,7 +160,7 @@ pub enum KillerError {
 /// ║       │       │       ║       │       │       ║       │       │       ║
 /// ╚═══════╧═══════╧═══════╩═══════╧═══════╧═══════╩═══════╧═══════╧═══════╝
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct KillerConstraint {
     cages: Vec<KillerCage>,
     cell_assignment: HashMap<(usize, usize), usize>
