@@ -258,7 +258,7 @@ impl KillerConstraint {
     fn cage_index_for_reduction(&self, (column, row): &(usize, usize))
             -> Result<usize, ReductionError> {
         self.cage_index_at(*column, *row)
-            .ok_or_else(|| ReductionError::InvalidReduction)
+            .ok_or(ReductionError::InvalidReduction)
     }
 
     fn adjacent_cages(&self)
@@ -285,6 +285,12 @@ impl KillerConstraint {
 
         cages.into_iter()
             .map(move |(i, j)| (&self.cages[i], &self.cages[j]))
+    }
+}
+
+impl Default for KillerConstraint {
+    fn default() -> KillerConstraint {
+        KillerConstraint::new()
     }
 }
 
@@ -342,16 +348,8 @@ fn sum_valid(sum: usize, missing: usize, size: usize, cage: &KillerCage)
     let missing_min_sum = missing * (missing + 1) / 2;
     let missing_max_sum = missing * size -
         missing * missing.overflowing_sub(1).0 / 2;
-
-    if sum + missing_min_sum > cage.sum() {
-        false
-    }
-    else if sum + missing_max_sum < cage.sum() {
-        false
-    }
-    else {
-        true
-    }
+    let cage_sum = cage.sum();
+    sum + missing_min_sum <= cage_sum && sum + missing_max_sum >= cage_sum
 }
 
 fn contains_duplicate_number(cage: &KillerCage, grid: &SudokuGrid) -> bool {
