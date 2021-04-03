@@ -61,6 +61,12 @@ struct Task<C: Constraint + Clone> {
     solution: SudokuGrid
 }
 
+#[derive(Deserialize)]
+struct Tasks<C: Constraint + Clone> {
+    tasks: Vec<Task<C>>,
+    only_fast: bool
+}
+
 fn solve_task<C: Constraint + Clone, S: Solver>(task: &Task<C>, solver: &S) {
     let computed_solution = solver.solve(&task.puzzle);
     assert_eq!(Solution::Unique(task.solution.clone()), computed_solution);
@@ -74,22 +80,25 @@ fn solve_tasks<C: Constraint + Clone, S: Solver>(tasks: &Vec<Task<C>>,
 }
 
 fn benchmark_solver_constraint<C, S>(group: &mut BenchmarkGroup<WallTime>,
-    id: &str, sample_size: usize, solver: &S)
+    id: &str, sample_size: usize, solver: &S, fast: bool)
 where
     for<'de> C: Constraint + Clone + Deserialize<'de>,
     S: Solver
 {
-    group.measurement_time(Duration::from_secs(MEASUREMENT_TIME_SECS));
-    group.sample_size(sample_size);
-    group.sampling_mode(SamplingMode::Flat);
-
     let mut file = String::from(BENCHDATA_DIR);
     file.push_str(id);
     file.push_str(TASK_FILE_EXT);
     let json = fs::read_to_string(file).unwrap();
-    let tasks: Vec<Task<C>> = serde_json::from_str(&json).unwrap();
+    let tasks: Tasks<C> = serde_json::from_str(&json).unwrap();
 
-    group.bench_function(id, |b| b.iter(|| solve_tasks(&tasks, solver)));
+    if tasks.only_fast && !fast {
+        return;
+    } 
+
+    group.measurement_time(Duration::from_secs(MEASUREMENT_TIME_SECS));
+    group.sample_size(sample_size);
+    group.sampling_mode(SamplingMode::Flat);
+    group.bench_function(id, |b| b.iter(|| solve_tasks(&tasks.tasks, solver)));
 }
 
 type DefaultAndDiagonalsConstraint =
@@ -102,34 +111,35 @@ type DefaultAndAdjacentConsecutiveConstraint =
     CompositeConstraint<DefaultConstraint, AdjacentConsecutiveConstraint>;
 
 fn benchmark_solver<S: Solver>(c: &mut Criterion, group_name: &str,
-        solver: S) {
+        solver: S, fast: bool) {
     let mut group = c.benchmark_group(group_name);
 
     benchmark_solver_constraint::<DefaultConstraint, _>(&mut group, "default",
-        DEFAULT_SAMPLE_SIZE, &solver);
+        DEFAULT_SAMPLE_SIZE, &solver, fast);
     benchmark_solver_constraint::<DefaultAndDiagonalsConstraint, _>(&mut group,
-        "diagonals", CONSTRAINED_SAMPLE_SIZE, &solver);
+        "diagonals", CONSTRAINED_SAMPLE_SIZE, &solver, fast);
     benchmark_solver_constraint::<DefaultAndKnightsMoveConstraint, _>(
-        &mut group, "knights-move", CONSTRAINED_SAMPLE_SIZE, &solver);
+        &mut group, "knights-move", CONSTRAINED_SAMPLE_SIZE, &solver, fast);
     benchmark_solver_constraint::<DefaultAndKingsMoveConstraint, _>(&mut group,
-        "kings-move", CONSTRAINED_SAMPLE_SIZE, &solver);
+        "kings-move", CONSTRAINED_SAMPLE_SIZE, &solver, fast);
     benchmark_solver_constraint::<DefaultAndAdjacentConsecutiveConstraint, _>(
-        &mut group, "adjacent-consecutive", CONSTRAINED_SAMPLE_SIZE, &solver);
+        &mut group, "adjacent-consecutive", CONSTRAINED_SAMPLE_SIZE, &solver,
+            fast);
 }
 
 fn benchmark_backtracking(c: &mut Criterion) {
-    benchmark_solver(c, "backtracking", BacktrackingSolver)
+    benchmark_solver(c, "backtracking", BacktrackingSolver, false)
 }
 
 fn benchmark_simple_strategic_backtracking(c: &mut Criterion) {
     benchmark_solver(c, "simple strategic backtracking",
-        StrategicBacktrackingSolver::new(NakedSingleStrategy))
+        StrategicBacktrackingSolver::new(NakedSingleStrategy), true)
 }
 
 fn benchmark_fastest_strategic_backtracking(c: &mut Criterion) {
     benchmark_solver(c, "fastest strategic backtracking",
         StrategicBacktrackingSolver::new(CompositeStrategy::new(
-            NakedSingleStrategy, OnlyCellStrategy)))
+            NakedSingleStrategy, OnlyCellStrategy)), true)
 }
 
 fn benchmark_complex_strategic_backtracking(c: &mut Criterion) {
@@ -149,7 +159,7 @@ fn benchmark_complex_strategic_backtracking(c: &mut Criterion) {
                     )
                 )
             )
-        ))
+        )), true
     )
 }
 
