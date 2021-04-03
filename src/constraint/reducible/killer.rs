@@ -9,12 +9,16 @@ use crate::constraint::{Constraint, Group, ReductionError};
 use crate::error::SudokuResult;
 use crate::util::{self, USizeSet};
 
+use serde::{Deserialize, Serialize};
+
 use std::collections::{HashMap, HashSet};
+use std::convert::TryFrom;
+use std::fmt::{self, Display, Formatter};
 
 /// A single cage in a Killer Sudoku, which contains some cells and annotates
 /// the sum of digits in these cells. Additionally, it requires that no digits
 /// repeat in this cage.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct KillerCage {
     group: Group,
     sum: usize
@@ -106,6 +110,16 @@ pub enum KillerError {
     DuplicateCells
 }
 
+impl Display for KillerError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            KillerError::CollidingCages => write!(f, "colliding cages"),
+            KillerError::EmptyCage => write!(f, "empty cage"),
+            KillerError::DuplicateCells => write!(f, "duplicate cells"),
+        }
+    }
+}
+
 /// A reducible [Constraint](crate:constraint::Constraint) which adds
 /// [KillerCage]s to the grid, which contain some cells and annotate some sum.
 /// The constraint requires that the sum of all digits in a cage is equal to
@@ -156,7 +170,9 @@ pub enum KillerError {
 /// ║       │       │       ║       │       │       ║       │       │       ║
 /// ╚═══════╧═══════╧═══════╩═══════╧═══════╧═══════╩═══════╧═══════╧═══════╝
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(try_from = "Vec<KillerCage>")]
+#[serde(into = "Vec<KillerCage>")]
 pub struct KillerConstraint {
     cages: Vec<KillerCage>,
     cell_assignment: HashMap<(usize, usize), usize>
@@ -291,6 +307,27 @@ impl KillerConstraint {
 impl Default for KillerConstraint {
     fn default() -> KillerConstraint {
         KillerConstraint::new()
+    }
+}
+
+impl TryFrom<Vec<KillerCage>> for KillerConstraint {
+    type Error = KillerError;
+
+    fn try_from(value: Vec<KillerCage>)
+            -> Result<KillerConstraint, KillerError> {
+        let mut constraint = KillerConstraint::new();
+
+        for cage in value {
+            constraint.add_cage(cage)?;
+        }
+
+        Ok(constraint)
+    }
+}
+
+impl From<KillerConstraint> for Vec<KillerCage> {
+    fn from(constraint: KillerConstraint) -> Vec<KillerCage> {
+        constraint.cages
     }
 }
 
@@ -983,5 +1020,17 @@ mod tests {
 
         assert_eq!(2, restored_cage.group().len());
         assert_eq!(7, restored_cage.sum());
+    }
+
+    #[test]
+    fn killer_serde_consistent() {
+        let constraint = complex_constraint();
+        let json = serde_json::to_string(&constraint).unwrap();
+        let reconstructed_constraint: KillerConstraint =
+            serde_json::from_str(&json).unwrap();
+
+        assert_eq!(&constraint.cages, &reconstructed_constraint.cages);
+        assert_eq!(&constraint.cell_assignment,
+            &reconstructed_constraint.cell_assignment)
     }
 }

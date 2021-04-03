@@ -7,6 +7,8 @@
 use crate::SudokuGrid;
 use crate::constraint::{Constraint, Group, ReductionError};
 
+use serde::{Deserialize, Serialize};
+
 use std::any::Any;
 
 /// A [Constraint] which simultaneously enforces two other constraints. This
@@ -38,7 +40,7 @@ use std::any::Any;
 /// statically known which types of constraints are used, so no dynamic
 /// dispatch is necessary. On the contrary, a `CompositeConstraint` is less
 /// flexible.
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct CompositeConstraint<C1, C2>
 where
     C1: Constraint + Clone + 'static,

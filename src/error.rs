@@ -1,9 +1,10 @@
 //! This module contains some error and result definitions used in this crate.
 
+use std::fmt::{self, Display, Formatter};
 use std::num::ParseIntError;
 
 /// Miscellaneous errors that can occur on some methods in the
-/// [root module](crate). This does not exclude errors that occur when parsing
+/// [root module](crate). This does not include errors that occur when parsing
 /// Sudoku, see [SudokuParseError] for that.
 #[derive(Debug, Eq, PartialEq)]
 pub enum SudokuError {
@@ -26,6 +27,18 @@ pub enum SudokuError {
     /// with a constraint that is not satisfied by any Sudoku with the given
     /// parameters.
     UnsatisfiableConstraint
+}
+
+impl Display for SudokuError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            SudokuError::InvalidDimensions => write!(f, "invalid dimensions"),
+            SudokuError::InvalidNumber => write!(f, "invalid number"),
+            SudokuError::OutOfBounds => write!(f, "out of bounds"),
+            SudokuError::UnsatisfiableConstraint =>
+                write!(f, "unsatisfiable constraint")
+        }
+    }
 }
 
 /// Syntactic sugar for `Result<V, SudokuError>`.

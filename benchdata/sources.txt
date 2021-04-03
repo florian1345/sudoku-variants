@@ -32,7 +32,7 @@ Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_Sudok
 Puzzles: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound8.pdf
 Solutions: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2015/2015_SudokuRound8_SB.pdf
 
-2016 Round 1 Puzzles 8, 9
+2016 Round 1 Puzzles 8, 9, 10
 Puzzles: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2016/2016_SudokuRound1.pdf
 Solutions: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2016/2016_SudokuRound1_SB.pdf
 
@@ -55,3 +55,19 @@ Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2016/2016_Sudok
 2017 Round 1 Puzzle 11
 Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2017/2017_SudokuRound1.pdf
 Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2017/2017_SudokuRound1_SB.pdf
+
+2017 Round 7 Puzzle 13
+Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2017/2017_SudokuRound7.pdf
+Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2017/2017_SudokuRound7_SB.pdf
+
+2018 Round 5 Puzzle 14
+Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2018/2018_SudokuRound5.pdf
+Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2018/2018_SudokuRound5_SB.pdf
+
+2018 Round 8 Puzzle 12
+Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2018/2018_SudokuRound8.pdf
+Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2018/2018_SudokuRound8_SB.pdf
+
+2019 Round 1 Puzzle 12
+Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2019/2019_SudokuRound1.pdf
+Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2019/2019_SudokuRound1_SB.pdf
