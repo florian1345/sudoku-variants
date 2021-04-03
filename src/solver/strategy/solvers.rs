@@ -130,14 +130,8 @@ impl<S: Strategy> StrategicBacktrackingSolver<S> {
 
         for number in options {
             let mut sudoku_info = sudoku_info.clone();
-            sudoku_info
-                .enter_cell_no_update(min_options_column, min_options_row, number)
+            sudoku_info.enter_cell(min_options_column, min_options_row, number)
                 .unwrap();
-            let options_info = sudoku_info
-                .get_options_mut(min_options_column, min_options_row)
-                .unwrap();
-            options_info.clear();
-            options_info.insert(number).unwrap();
 
             let next_solution = self.solve_rec(&mut sudoku_info);
             solution = solution.union(next_solution);
