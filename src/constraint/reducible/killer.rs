@@ -325,9 +325,9 @@ impl TryFrom<Vec<KillerCage>> for KillerConstraint {
     }
 }
 
-impl Into<Vec<KillerCage>> for KillerConstraint {
-    fn into(self) -> Vec<KillerCage> {
-        self.cages
+impl From<KillerConstraint> for Vec<KillerCage> {
+    fn from(constraint: KillerConstraint) -> Vec<KillerCage> {
+        constraint.cages
     }
 }
 
