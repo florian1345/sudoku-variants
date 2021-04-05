@@ -93,9 +93,9 @@
 //! assert!(!sudoku.is_valid_cell(0, 0).unwrap());
 //! ```
 //!
-//! Similarly, it is also possible to check a singular cell with a potntial new
-//! entry, before changing the Sudoku, using [Sudoku::is_valid_number]. Since
-//! it otherwise behaves just like the example above, we will not provide
+//! Similarly, it is also possible to check a singular cell with a potential
+//! new entry, before changing the Sudoku, using [Sudoku::is_valid_number].
+//! Since it otherwise behaves just like the example above, we will not provide
 //! another example.
 //!
 //! All examples above have been using the
