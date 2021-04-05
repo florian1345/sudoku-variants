@@ -225,6 +225,9 @@ pub mod generator;
 pub mod solver;
 pub mod util;
 
+#[cfg(test)]
+mod fix_tests;
+
 use constraint::Constraint;
 use error::{SudokuError, SudokuParseError, SudokuParseResult, SudokuResult};
 
