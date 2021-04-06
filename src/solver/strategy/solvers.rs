@@ -66,8 +66,8 @@ pub struct StrategicBacktrackingSolver<S: Strategy> {
 
 /// Finds the cell for which there are the fewest options and returns its
 /// coordinates in the form `(column, row)`.
-fn find_min_options<C: Constraint + Clone>(sudoku_info: &mut SudokuInfo<C>)
-        -> (usize, usize) {
+fn find_min_options<C: Constraint + Clone>(sudoku_info: &SudokuInfo<C>)
+        -> (usize, usize, usize) {
     let size = sudoku_info.size();
     let mut min_options_column = 0usize;
     let mut min_options_row = 0usize;
@@ -78,7 +78,7 @@ fn find_min_options<C: Constraint + Clone>(sudoku_info: &mut SudokuInfo<C>)
             let cell = sudoku_info.get_cell(column, row).unwrap();
             let options = sudoku_info.get_options(column, row).unwrap();
 
-            if cell == None && options.len() < min_options {
+            if cell.is_none() && options.len() < min_options {
                 min_options_column = column;
                 min_options_row = row;
                 min_options = options.len();
@@ -86,7 +86,7 @@ fn find_min_options<C: Constraint + Clone>(sudoku_info: &mut SudokuInfo<C>)
         }
     }
 
-    (min_options_column, min_options_row)
+    (min_options_column, min_options_row, min_options)
 }
 
 fn to_solution(sudoku: &Sudoku<impl Constraint + Clone>) -> Option<Solution> {
@@ -111,6 +111,15 @@ impl<S: Strategy> StrategicBacktrackingSolver<S> {
         StrategicBacktrackingSolver { strategy }
     }
 
+    #[inline]
+    fn solve_rec_step(&self,
+            sudoku_info: &mut SudokuInfo<impl Constraint + Clone>,
+            column: usize, row: usize, number: usize) -> Solution {
+        sudoku_info.enter_cell(column, row, number)
+            .unwrap();
+        self.solve_rec(sudoku_info)
+    }
+
     fn solve_rec(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>) -> Solution {
         while {
             if let Some(solution) = to_solution(sudoku_info.sudoku()) {
@@ -120,26 +129,45 @@ impl<S: Strategy> StrategicBacktrackingSolver<S> {
             self.strategy.apply(sudoku_info)
         } { }
 
-        let (min_options_column, min_options_row) =
+        let (column, row, min_options) =
             find_min_options(sudoku_info);
-        let options = sudoku_info
-            .get_options(min_options_column, min_options_row)
+
+        if min_options == 0 {
+            return Solution::Impossible;
+        }
+
+        let mut options = sudoku_info
+            .get_options(column, row)
             .unwrap()
             .iter();
-        let mut solution = Solution::Impossible;
 
-        for number in options {
-            let mut sudoku_info = sudoku_info.clone();
-            sudoku_info.enter_cell(min_options_column, min_options_row, number)
+        if min_options == 1 {
+            let number = options.next().unwrap();
+            sudoku_info.enter_cell(column, row, number)
                 .unwrap();
+            return self.solve_rec(sudoku_info);
+        }
 
-            let next_solution = self.solve_rec(&mut sudoku_info);
+        let mut solution = Solution::Impossible;
+        let mut i = 1usize;
+
+        while i < min_options {
+            let number = options.next().unwrap();
+            let next_solution = self.solve_rec_step(
+                &mut sudoku_info.clone(), column, row, number);
             solution = solution.union(next_solution);
 
             if solution == Solution::Ambiguous {
                 break;
             }
+
+            i += 1;
         }
+
+        let number = options.next().unwrap();
+        let next_solution =
+            self.solve_rec_step(sudoku_info, column, row, number);
+        solution = solution.union(next_solution);
 
         solution
     }
