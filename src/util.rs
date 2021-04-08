@@ -544,7 +544,7 @@ impl USizeSet {
 
         if rem_bits > 0 {
             let mask = u64::MAX >> (U64_BIT_SIZE - rem_bits);
-            self.content[len - 1] = self.content[len - 1] ^ mask;
+            self.content[len - 1] ^= mask;
         }
 
         self.len = self.count();
