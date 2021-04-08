@@ -12,6 +12,7 @@ use std::ops::{
     BitOrAssign,
     BitXor,
     BitXorAssign,
+    Not,
     Sub,
     SubAssign
 };
@@ -107,7 +108,7 @@ impl<'a> USizeSetIter<'a> {
     }
 }
 
-const USIZE_BIT_SIZE: usize = mem::size_of::<usize>() * 8;
+const U64_BIT_SIZE: usize = mem::size_of::<u64>() * 8;
 
 impl<'a> Iterator for USizeSetIter<'a> {
     type Item = usize;
@@ -120,7 +121,7 @@ impl<'a> Iterator for USizeSetIter<'a> {
 
             if let Some(&next_content) = self.content.next() {
                 self.current = BitIterator::new(next_content);
-                self.offset += USIZE_BIT_SIZE;
+                self.offset += U64_BIT_SIZE;
             }
             else {
                 return None;
@@ -212,9 +213,9 @@ impl USizeSet {
         else {
             let mut content = Vec::new();
             let ones = max - min + 1;
-            let ones_words = ones >> 6;
+            let ones_words = ones / U64_BIT_SIZE;
 
-            for _ in 1..ones_words {
+            for _ in 0..ones_words {
                 content.push(!0);
             }
 
@@ -529,6 +530,35 @@ impl USizeSet {
             -> USizeSetResult<USizeSet> {
         self.op(other, USizeSet::symmetric_difference_assign)
     }
+
+    /// Inverts this set, i.e. removes all numbers currently contained in it
+    /// and inserts all numbers in the range that are not contained.
+    pub fn complement_assign(&mut self) {
+        let len = self.content.len();
+
+        for i in 0..(len - 1) {
+            self.content[i] = !self.content[i];
+        }
+
+        let rem_bits = (self.max() - self.min() + 1) % U64_BIT_SIZE;
+
+        if rem_bits > 0 {
+            let mask = u64::MAX >> (U64_BIT_SIZE - rem_bits);
+            self.content[len - 1] ^= mask;
+        }
+
+        self.len = self.count();
+    }
+
+    /// Computes the complement of this set, i.e. a set that contains exactly
+    /// those elements in the range of this set that are not contained in it.
+    ///
+    /// `USizeSet` implements [Not] as syntactic sugar for this operation.
+    pub fn complement(&self) -> USizeSet {
+        let mut result = self.clone();
+        result.complement_assign();
+        result
+    }
 }
 
 /// Creates a new [USizeSet] that contains the specified elements. First, the
@@ -684,6 +714,23 @@ impl BitXorAssign<&USizeSet> for &mut USizeSet {
     }
 }
 
+impl Not for &USizeSet {
+    type Output = USizeSet;
+
+    fn not(self) -> Self::Output {
+        self.complement()
+    }
+}
+
+impl Not for USizeSet {
+    type Output = USizeSet;
+
+    fn not(mut self) -> USizeSet {
+        self.complement_assign();
+        self
+    }
+}
+
 /// Determines whether the given iterator contains at least two equal elements
 /// as defined by the [Eq](std::cmp::Eq) trait. The duplication detection is
 /// implemented with a [HashSet](std::collections::HashSet), so it is required
@@ -721,6 +768,16 @@ mod tests {
         assert!(set.contains(3));
         assert!(set.contains(9));
         assert_eq!(9, set.len());
+    }
+
+    #[test]
+    fn multi_word_range() {
+        let set = USizeSet::range(100, 199).unwrap();
+        assert!(set.contains(100));
+        assert!(set.contains(199));
+        assert!(!set.contains(99));
+        assert!(!set.contains(200));
+        assert_eq!(100, set.len());
     }
 
     #[test]
@@ -859,11 +916,30 @@ mod tests {
         set!(1, 4; 3, 4)
     }
 
+    fn triangle_nums_to_100() -> USizeSet {
+        set!(1, 100; 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91)
+    }
+
+    fn fibs_to_100() -> USizeSet {
+        set!(1, 100; 1, 2, 3, 5, 8, 13, 21, 34, 55, 89)
+    }
+
     #[test]
     fn union() {
         let result = op_test_lhs() | &op_test_rhs();
         let expected = set!(1, 4; 2, 3, 4);
         assert_eq!(expected, result);
+        assert_eq!(3, result.len());
+    }
+
+    #[test]
+    fn multi_word_union() {
+        let result = triangle_nums_to_100() | &fibs_to_100();
+        let expected = set!(1, 100;
+            1, 2, 3, 5, 6, 8, 10, 13, 15, 21,
+            28, 34, 36, 45, 55, 66, 78, 89, 91);
+        assert_eq!(expected, result);
+        assert_eq!(19, result.len());
     }
 
     #[test]
@@ -871,6 +947,15 @@ mod tests {
         let result = op_test_lhs() & &op_test_rhs();
         let expected = set!(1, 4; 4);
         assert_eq!(expected, result);
+        assert_eq!(1, result.len());
+    }
+
+    #[test]
+    fn multi_word_intersection() {
+        let result = triangle_nums_to_100() & &fibs_to_100();
+        let expected = set!(1, 100; 1, 3, 21, 55);
+        assert_eq!(expected, result);
+        assert_eq!(4, result.len())
     }
 
     #[test]
@@ -878,6 +963,15 @@ mod tests {
         let result = op_test_lhs() - &op_test_rhs();
         let expected = set!(1, 4; 2);
         assert_eq!(expected, result);
+        assert_eq!(1, result.len());
+    }
+
+    #[test]
+    fn multi_word_difference() {
+        let result = triangle_nums_to_100() - &fibs_to_100();
+        let expected = set!(1, 100; 6, 10, 15, 28, 36, 45, 66, 78, 91);
+        assert_eq!(expected, result);
+        assert_eq!(9, result.len());
     }
 
     #[test]
@@ -885,6 +979,54 @@ mod tests {
         let result = op_test_lhs() ^ &op_test_rhs();
         let expected = set!(1, 4; 2, 3);
         assert_eq!(expected, result);
+        assert_eq!(2, result.len());
+    }
+
+    #[test]
+    fn multi_word_symmetric_difference() {
+        let result = triangle_nums_to_100() ^ &fibs_to_100();
+        let expected =
+            set!(1, 100;
+                2, 5, 6, 8, 10, 13, 15, 28, 34, 36, 45, 66, 78, 89, 91);
+        assert_eq!(expected, result);
+        assert_eq!(15, result.len());
+    }
+
+    #[test]
+    fn complement() {
+        let result = !op_test_lhs();
+        let expected = set!(1, 4; 1, 3);
+        assert_eq!(expected, result);
+        assert_eq!(2, result.len());
+    }
+
+    #[test]
+    fn multi_word_complement() {
+        let result = !triangle_nums_to_100();
+        let mut expected = USizeSet::range(1, 100).unwrap();
+
+        for i in 1..=13 {
+            expected.remove(i * (i + 1) / 2).unwrap();
+        }
+
+        assert_eq!(expected, result);
+        assert_eq!(87, result.len());
+    }
+
+    #[test]
+    fn complement_full() {
+        let result = !USizeSet::range(5, 105).unwrap();
+        let expected = USizeSet::new(5, 105).unwrap();
+        assert_eq!(expected, result);
+        assert_eq!(0, result.len());
+    }
+
+    #[test]
+    fn complement_empty() {
+        let result = !USizeSet::new(5, 105).unwrap();
+        let expected = USizeSet::range(5, 105).unwrap();
+        assert_eq!(expected, result);
+        assert_eq!(101, result.len());
     }
 
     #[test]
