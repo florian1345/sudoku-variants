@@ -6,7 +6,6 @@
 
 use crate::SudokuGrid;
 use crate::constraint::{Constraint, Group, ReductionError};
-use crate::error::SudokuResult;
 use crate::util::{self, USizeSet};
 
 use serde::{Deserialize, Serialize};
@@ -362,14 +361,25 @@ pub enum KillerReduction {
     }
 }
 
-/// Returns the sum of all digits and the number of missing cells in the group.
-fn eval_cage(cage: &KillerCage, grid: &SudokuGrid)
-        -> SudokuResult<(usize, usize)> {
+/// Returns whether the given cage is valid considering the provided grid. May
+/// raise an error if the cage contains cells outside the grid. `replace` maps
+/// the column and row of a cell to `None` if its content should not be
+/// replaced and to `Some(n)` if it should be replaced by n.
+fn check_cage(cage: &KillerCage, grid: &SudokuGrid, replace: impl Fn(usize, usize) -> Option<usize>) -> bool {
+    let size = grid.size();
+    let mut numbers = USizeSet::new(1, size).unwrap();
     let mut sum = 0;
     let mut missing = 0;
 
     for &(column, row) in cage.group() {
-        if let Some(n) = grid.get_cell(column, row)? {
+        let content = replace(column, row)
+            .or_else(|| grid.get_cell(column, row).unwrap());
+
+        if let Some(n) = content {
+            if !numbers.insert(n).unwrap() {
+                return false;
+            }
+
             sum += n;
         }
         else {
@@ -377,16 +387,22 @@ fn eval_cage(cage: &KillerCage, grid: &SudokuGrid)
         }
     }
 
-    Ok((sum, missing))
-}
+    numbers.complement_assign();
+    let min_sum = sum + numbers.iter()
+        .take(missing)
+        .sum::<usize>();
 
-fn sum_valid(sum: usize, missing: usize, size: usize, cage: &KillerCage)
-        -> bool {
-    let missing_min_sum = missing * (missing + 1) / 2;
-    let missing_max_sum = missing * size -
-        missing * missing.overflowing_sub(1).0 / 2;
-    let cage_sum = cage.sum();
-    sum + missing_min_sum <= cage_sum && sum + missing_max_sum >= cage_sum
+    if min_sum > cage.sum() {
+        return false;
+    }
+
+    let max_sum = sum + (1..=size)
+        .rev()
+        .filter(|&n| numbers.contains(n))
+        .take(missing)
+        .sum::<usize>();
+
+    max_sum >= cage.sum()
 }
 
 fn contains_duplicate_number(cage: &KillerCage, grid: &SudokuGrid) -> bool {
@@ -403,15 +419,6 @@ fn contains_duplicate_number(cage: &KillerCage, grid: &SudokuGrid) -> bool {
     false
 }
 
-fn is_valid(cage: &KillerCage, grid: &SudokuGrid) -> bool {
-    if contains_duplicate_number(cage, grid) {
-        return false;
-    }
-
-    let (sum, missing) = eval_cage(cage, grid).unwrap();
-    sum_valid(sum, missing, grid.size(), cage)
-}
-
 impl Constraint for KillerConstraint {
 
     type Reduction = KillerReduction;
@@ -419,7 +426,7 @@ impl Constraint for KillerConstraint {
 
     fn check(&self, grid: &SudokuGrid) -> bool {
         for cage in self.cages.iter() {
-            if !is_valid(cage, grid) {
+            if !check_cage(cage, grid, |_, _| None) {
                 return false;
             }
         }
@@ -430,7 +437,7 @@ impl Constraint for KillerConstraint {
     fn check_cell(&self, grid: &SudokuGrid, column: usize, row: usize)
             -> bool {
         if let Some(cage) = self.cage_at(column, row) {
-            is_valid(cage, grid)
+            check_cage(cage, grid, |_, _| None)
         }
         else {
             true
@@ -440,41 +447,18 @@ impl Constraint for KillerConstraint {
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
         if let Some(cage) = self.cage_at(column, row) {
-            let (mut sum, mut missing) = eval_cage(cage, grid).unwrap();
-            let content = grid.get_cell(column, row).unwrap();
-
-            if let Some(content) = content {
-                sum -= content;
-            }
-            else {
-                missing -= 1;
-            }
-
-            sum += number;
-
-            if !sum_valid(sum, missing, grid.size(), cage) {
-                return false;
-            }
-
-            let mut numbers = USizeSet::new(1, grid.size()).unwrap();
-
-            for &(cell_column, cell_row) in cage.group() {
-                let number = if cell_column == column && cell_row == row {
+            check_cage(cage, grid, |c, r|
+                if c == column && r == row {
                     Some(number)
                 }
                 else {
-                    grid.get_cell(cell_column, cell_row).unwrap()
-                };
-
-                if let Some(number) = number {
-                    if !numbers.insert(number).unwrap() {
-                        return false;
-                    }
+                    None
                 }
-            }
+            )
         }
-
-        true
+        else {
+            true
+        }
     }
 
     fn get_groups(&self, _: &SudokuGrid) -> Vec<Group> {
