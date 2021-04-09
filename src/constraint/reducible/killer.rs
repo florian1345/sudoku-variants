@@ -365,7 +365,8 @@ pub enum KillerReduction {
 /// raise an error if the cage contains cells outside the grid. `replace` maps
 /// the column and row of a cell to `None` if its content should not be
 /// replaced and to `Some(n)` if it should be replaced by n.
-fn check_cage(cage: &KillerCage, grid: &SudokuGrid, replace: impl Fn(usize, usize) -> Option<usize>) -> bool {
+fn check_cage(cage: &KillerCage, grid: &SudokuGrid,
+        replace: impl Fn(usize, usize) -> Option<usize>) -> bool {
     let size = grid.size();
     let mut numbers = USizeSet::new(1, size).unwrap();
     let mut sum = 0;

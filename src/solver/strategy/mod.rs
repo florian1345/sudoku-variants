@@ -106,10 +106,11 @@ use crate::constraint::Constraint;
 use crate::error::{SudokuError, SudokuResult};
 use crate::util::USizeSet;
 
-pub mod impls;
+pub mod general;
 pub mod solvers;
+pub mod specific;
 
-pub use impls::*;
+pub use general::*;
 pub use solvers::*;
 
 /// Enriches a [Sudoku] with additional information about which numbers can go
@@ -169,18 +170,6 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
             cell_options,
             enqueued_cells: Vec::new(),
             up_to_date: true
-        }
-    }
-
-    fn verified_index(&self, column: usize, row: usize)
-            -> SudokuResult<usize> {
-        let size = self.size();
-
-        if column >= size || row >= size {
-            Err(SudokuError::OutOfBounds)
-        }
-        else {
-            Ok(crate::index(column, row, size))
         }
     }
 
@@ -335,11 +324,7 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
                     continue;
                 }
 
-                // TODO find a way to use get_options without triggering the
-                // borrow checker
-
-                let options =
-                    &mut self.cell_options[crate::index(column, row, size)];
+                let options = self.get_options(column, row).unwrap();
                 options_to_remove.clear();
 
                 for option in options.iter() {
@@ -351,6 +336,8 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
                         options_to_remove.push(option);
                     }
                 }
+
+                let options = self.get_options_mut(column, row).unwrap();
 
                 for &option_to_remove in options_to_remove.iter() {
                     options.remove(option_to_remove).unwrap();
@@ -392,7 +379,7 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
     /// case, `SudokuError::OutOfBounds` is returned.
     pub fn get_options(&self, column: usize, row: usize)
             -> SudokuResult<&USizeSet> {
-        let index = self.verified_index(column, row)?;
+        let index = crate::index(column, row, self.size())?;
         Ok(&self.cell_options[index])
     }
 
@@ -417,7 +404,7 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
     /// case, `SudokuError::OutOfBounds` is returned.
     pub fn get_options_mut(&mut self, column: usize, row: usize)
             -> SudokuResult<&mut USizeSet> {
-        let index = self.verified_index(column, row)?;
+        let index = crate::index(column, row, self.size())?;
         Ok(&mut self.cell_options[index])
     }
 
@@ -614,8 +601,9 @@ pub trait Strategy {
     ///
     /// This method shall return `true` if and only if something has changed,
     /// that is, a digit has been entered or an option has been removed.
-    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
-        -> bool;
+    fn apply<C>(&self, sudoku_info: &mut SudokuInfo<C>) -> bool
+    where
+        C: Constraint + Clone + 'static;
 }
 
 #[cfg(test)]

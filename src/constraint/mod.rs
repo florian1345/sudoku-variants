@@ -120,6 +120,8 @@
 
 // TODO add an example for a custom, reducible constraint
 
+use std::any::Any;
+
 use crate::SudokuGrid;
 
 pub mod composite;
@@ -294,4 +296,50 @@ pub trait Constraint {
     /// constraint applies to is also provided.
     fn revert(&mut self, solution: &SudokuGrid, reduction: &Self::Reduction,
         revert_info: Self::RevertInfo);
+
+    /// Converts this constraint to a vector of trait objects of the atomic
+    /// sub-constraints. By default, it returns a singleton vector containing
+    /// a trait object of this constraint. This is sufficient for all atomic
+    /// constraints, so you only need to implement this if you write a custom
+    /// composite constraint.
+    fn to_objects(&self) -> Vec<&dyn Any>
+    where
+        Self : Sized + 'static
+    {
+        vec![self]
+    }
+}
+
+/// A trait that enables querying of atomic sub-constraints on a constraint by
+/// their type. This is blanket-implemented on all [Constraint]s, you should
+/// not have to implement it yourself.
+pub trait Subconstraint {
+
+    /// Gets the *first* atomic sub-constraint of type `S` contained in this
+    /// constraint. If there is no such constraint, `None` is returned.
+    ///
+    /// The order of the sub-constraints is defined by
+    /// [Constraint::to_objects], which is the same order as the insertion
+    /// order for the
+    /// [DynamicConstraint](crate::constraint::composite::DynamicConstraint)
+    /// and left-to-right for the
+    /// [CompositeConstraint](crate::constraint::composite::CompositeConstraint).
+    fn get_subconstraint<S: Constraint + Sized + 'static>(&self) -> Option<&S>;
+}
+
+impl<C: Constraint + Sized + 'static> Subconstraint for C {
+    fn get_subconstraint<S>(&self) -> Option<&S>
+    where
+        S: Constraint + Sized + 'static
+    {
+        for object in self.to_objects() {
+            let subconstraint = object.downcast_ref();
+
+            if subconstraint.is_some() {
+                return subconstraint;
+            }
+        }
+
+        None
+    }
 }

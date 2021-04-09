@@ -68,7 +68,9 @@ pub trait Solver {
     /// prove that a Sudoku is impossible or uniquely solveable (either
     /// because it isn't or the solver is not powerful enough), they shall
     /// return `Solution::Ambiguous`.
-    fn solve(&self, sudoku: &Sudoku<impl Constraint + Clone>) -> Solution;
+    fn solve<C>(&self, sudoku: &Sudoku<C>) -> Solution
+    where
+        C: Constraint + Clone + 'static;
 }
 
 /// A perfect [Solver] which solves Sudoku by recursively testing all valid
@@ -80,8 +82,11 @@ pub trait Solver {
 pub struct BacktrackingSolver;
 
 impl BacktrackingSolver {
-    fn solve_rec(sudoku: &mut Sudoku<impl Constraint + Clone>, column: usize,
-            row: usize) -> Solution {
+    fn solve_rec<C>(sudoku: &mut Sudoku<C>, column: usize, row: usize)
+        -> Solution
+    where
+        C: Constraint + Clone + 'static
+    {
         let size = sudoku.grid().size();
         let last_cell = row == size;
 
@@ -117,13 +122,19 @@ impl BacktrackingSolver {
         }
     }
 
-    fn solve(sudoku: &mut Sudoku<impl Constraint + Clone>) -> Solution {
+    fn solve<C>(sudoku: &mut Sudoku<C>) -> Solution
+    where
+        C: Constraint + Clone + 'static
+    {
         BacktrackingSolver::solve_rec(sudoku, 0, 0)
     }
 }
 
 impl Solver for BacktrackingSolver {
-    fn solve(&self, sudoku: &Sudoku<impl Constraint + Clone>) -> Solution {
+    fn solve<C>(&self, sudoku: &Sudoku<C>) -> Solution
+    where
+        C: Constraint + Clone + 'static
+    {
         let mut clone = sudoku.clone();
         BacktrackingSolver::solve(&mut clone)
     }
@@ -148,7 +159,7 @@ mod tests {
 
     fn test_solves_correctly<C>(puzzle: &str, solution: &str, constraint: C)
     where
-        C: Constraint + Clone
+        C: Constraint + Clone + 'static
     {
         let sudoku = Sudoku::parse(puzzle, constraint).unwrap();
         let solver = BacktrackingSolver;
