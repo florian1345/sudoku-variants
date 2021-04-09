@@ -61,7 +61,7 @@ pub struct KillerCagePossibilitiesStrategy;
 /// inserted into previous cells in the cage. Filled cells are not considered
 /// here, since those should not occur in the options in the first place.
 /// * `index`: The index of the cell to process at this recursion depth.
-fn find_options_rec(missing: &Vec<&USizeSet>, current_sum: usize,
+fn find_options_rec(missing: &[&USizeSet], current_sum: usize,
         required_sum: usize, new_options: &mut Vec<USizeSet>,
         numbers: &mut USizeSet, index: usize) -> bool {
     if index == missing.len() - 1 {
@@ -104,8 +104,8 @@ fn find_options_rec(missing: &Vec<&USizeSet>, current_sum: usize,
     result
 }
 
-fn find_options(missing: &Vec<&USizeSet>, current_sum: usize,
-        required_sum: usize, size: usize) -> Vec<USizeSet> {
+fn find_options(missing: &[&USizeSet], current_sum: usize, required_sum: usize,
+        size: usize) -> Vec<USizeSet> {
     let mut new_options = vec![USizeSet::new(1, size).unwrap(); missing.len()];
     let mut numbers = USizeSet::new(1, size).unwrap();
     find_options_rec(missing, current_sum, required_sum, &mut new_options,

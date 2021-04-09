@@ -72,8 +72,10 @@
 //! struct NakedOneStrategy;
 //!
 //! impl Strategy for NakedOneStrategy {
-//!     fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
-//!             -> bool {
+//!     fn apply<C>(&self, sudoku_info: &mut SudokuInfo<C>) -> bool
+//!     where
+//!         C: Constraint + Clone + 'static
+//!     {
 //!         let size = sudoku_info.sudoku().grid().size();
 //!         let mut changed = false;
 //!
