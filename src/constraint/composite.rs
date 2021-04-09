@@ -171,6 +171,15 @@ where
             }
         }
     }
+
+    fn to_objects(&self) -> Vec<&dyn Any>
+    where
+        Self : Sized + 'static
+    {
+        let mut result = self.c1.to_objects();
+        result.append(&mut self.c2.to_objects());
+        result
+    }
 }
 
 /// A trait for cloneable [Constraint]s which is used in the
@@ -182,6 +191,8 @@ trait CloneConstraint :
 
     /// Clones a trait object of this constraint.
     fn clone_box(&self) -> Box<dyn CloneConstraint>;
+
+    fn to_objects_wrapped(&self) -> Vec<&dyn Any>;
 }
 
 #[derive(Clone)]
@@ -244,6 +255,13 @@ impl<C: Constraint + Clone + 'static> Constraint for WrappedConstraint<C> {
             .expect("Revert info has wrong type.");
         self.constraint.revert(solution, reduction, revert_info);
     }
+
+    fn to_objects(&self) -> Vec<&dyn Any>
+    where
+        Self : Sized + 'static
+    {
+        self.constraint.to_objects()
+    }
 }
 
 impl<C> CloneConstraint for WrappedConstraint<C>
@@ -252,6 +270,10 @@ where
 {
     fn clone_box(&self) -> Box<dyn CloneConstraint> {
         Box::new(self.clone())
+    }
+
+    fn to_objects_wrapped(&self) -> Vec<&dyn Any> {
+        self.constraint.to_objects()
     }
 }
 
@@ -328,6 +350,19 @@ impl Constraint for DynamicConstraint {
         let constraint = self.constraints.get_mut(*index)
             .expect("Reduction had invalid index.");
         constraint.revert(solution, data, revert_info);
+    }
+
+    fn to_objects(&self) -> Vec<&dyn Any>
+    where
+        Self : Sized + 'static
+    {
+        let mut result = Vec::new();
+
+        for constraint in self.constraints.iter() {
+            result.append(&mut constraint.to_objects_wrapped());
+        }
+
+        result
     }
 }
 

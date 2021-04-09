@@ -490,8 +490,14 @@ fn to_string(cell: &Option<usize>) -> String {
     }
 }
 
-pub(crate) fn index(column: usize, row: usize, size: usize) -> usize {
-    row * size + column
+pub(crate) fn index(column: usize, row: usize, size: usize)
+        -> SudokuResult<usize> {
+    if column < size || row < size {
+        Ok(row * size + column)
+    }
+    else {
+        Err(SudokuError::OutOfBounds)
+    }
 }
 
 fn parse_dimensions(code: &str) -> Result<(usize, usize), SudokuParseError> {
@@ -671,15 +677,8 @@ impl SudokuGrid {
     /// case, `SudokuError::OutOfBounds` is returned.
     pub fn get_cell(&self, column: usize, row: usize)
             -> SudokuResult<Option<usize>> {
-        let size = self.size();
-
-        if column >= size || row >= size {
-            Err(SudokuError::OutOfBounds)
-        }
-        else {
-            let index = index(column, row, size);
-            Ok(self.cells[index])
-        }
+        let index = index(column, row, self.size())?;
+        Ok(self.cells[index])
     }
 
     /// Indicates whether the cell at the specified position has the given
@@ -730,16 +729,12 @@ impl SudokuGrid {
     pub fn set_cell(&mut self, column: usize, row: usize, number: usize)
             -> SudokuResult<()> {
         let size = self.size();
-
-        if column >= size || row >= size {
-            return Err(SudokuError::OutOfBounds);
-        }
+        let index = index(column, row, size)?;
 
         if number == 0 || number > size {
             return Err(SudokuError::InvalidNumber);
         }
 
-        let index = index(column, row, size);
         self.cells[index] = Some(number);
         Ok(())
     }
@@ -761,13 +756,7 @@ impl SudokuGrid {
     /// case, `SudokuError::OutOfBounds` is returned.
     pub fn clear_cell(&mut self, column: usize, row: usize)
             -> SudokuResult<()> {
-        let size = self.size();
-
-        if column >= size || row >= size {
-            return Err(SudokuError::OutOfBounds);
-        }
-        
-        let index = index(column, row, size);
+        let index = index(column, row, self.size())?;
         self.cells[index] = None;
         Ok(())
     }

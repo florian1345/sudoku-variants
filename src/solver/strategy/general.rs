@@ -34,8 +34,10 @@ pub struct NakedSingleStrategy;
 
 impl Strategy for NakedSingleStrategy {
 
-    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
-            -> bool {
+    fn apply<C>(&self, sudoku_info: &mut SudokuInfo<C>) -> bool
+    where
+        C: Constraint + Clone + 'static
+    {
         let size = sudoku_info.size();
         let mut changed = false;
 
@@ -106,8 +108,10 @@ pub struct OnlyCellStrategy;
 
 impl Strategy for OnlyCellStrategy {
 
-    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
-            -> bool {
+    fn apply<C>(&self, sudoku_info: &mut SudokuInfo<C>) -> bool
+    where
+        C: Constraint + Clone + 'static
+    {
         let size = sudoku_info.size();
         let grid = sudoku_info.sudoku().grid();
         let groups = sudoku_info.sudoku().constraint().get_groups(grid);
@@ -276,8 +280,10 @@ fn find_tuples(sudoku_info: &SudokuInfo<impl Constraint + Clone>,
 
 impl<F: Fn(usize) -> usize> Strategy for TupleStrategy<F> {
 
-    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
-            -> bool {
+    fn apply<C>(&self, sudoku_info: &mut SudokuInfo<C>) -> bool
+    where
+        C: Constraint + Clone + 'static
+    {
         let mut changed = false;
         let grid = sudoku_info.sudoku().grid();
         let groups = sudoku_info.sudoku().constraint().get_groups(grid);
@@ -386,7 +392,7 @@ where
 /// reached, but at most `max_applications` times, if it is given.
 fn apply_continuation(max_applications: Option<usize>,
         continuation_strategy: &impl Strategy,
-        sudoku_info: &mut SudokuInfo<impl Constraint + Clone>) {
+        sudoku_info: &mut SudokuInfo<impl Constraint + Clone + 'static>) {
     match max_applications {
         None => {
             while continuation_strategy.apply(sudoku_info) { }
@@ -426,8 +432,10 @@ where
     FA: Fn(usize) -> Option<usize>,
     S: Strategy
 {
-    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
-            -> bool {
+    fn apply<C>(&self, sudoku_info: &mut SudokuInfo<C>) -> bool
+    where
+        C: Constraint + Clone + 'static
+    {
         let size = sudoku_info.size();
         let max_options = (self.max_options_computer)(size);
         let max_applications = (self.max_applications_computer)(size);
@@ -555,8 +563,10 @@ where
     FA: Fn(usize) -> Option<usize>,
     S: Strategy
 {
-    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
-            -> bool {
+    fn apply<C>(&self, sudoku_info: &mut SudokuInfo<C>) -> bool
+    where
+        C: Constraint + Clone + 'static
+    {
         let size = sudoku_info.size();
         let max_cells = (self.max_cells_computer)(size);
         let max_applications = (self.max_applications_computer)(size);
@@ -620,7 +630,10 @@ where
 pub struct NoStrategy;
 
 impl Strategy for NoStrategy {
-    fn apply(&self, _: &mut SudokuInfo<impl Constraint + Clone>) -> bool {
+    fn apply<C>(&self, _: &mut SudokuInfo<C>) -> bool
+    where
+        C: Constraint + Clone + 'static
+    {
         false
     }
 }
@@ -650,8 +663,10 @@ impl<S1: Strategy, S2: Strategy> CompositeStrategy<S1, S2> {
 }
 
 impl<S1: Strategy, S2: Strategy> Strategy for CompositeStrategy<S1, S2> {
-    fn apply(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>)
-            -> bool {
+    fn apply<C>(&self, sudoku_info: &mut SudokuInfo<C>) -> bool
+    where
+        C: Constraint + Clone + 'static
+    {
         self.s1.apply(sudoku_info) | self.s2.apply(sudoku_info)
     }
 }
@@ -671,7 +686,7 @@ mod tests {
     use crate::constraint::DefaultConstraint;
     use crate::solver::strategy::SudokuInfo;
 
-    fn apply<C: Constraint + Clone, S: Strategy>(strategy: S,
+    fn apply<C: Constraint + Clone + 'static, S: Strategy>(strategy: S,
             sudoku_info: &mut SudokuInfo<C>, apply_once: bool) {
         while strategy.apply(sudoku_info) {
             if apply_once {
@@ -687,7 +702,7 @@ mod tests {
         weak_strategy: W, strong_strategy: S, apply_once: bool,
         test: impl Fn(&SudokuInfo<C>) -> bool)
     where
-        C: Constraint + Clone,
+        C: Constraint + Clone + 'static,
         W: Strategy,
         S: Strategy
     {

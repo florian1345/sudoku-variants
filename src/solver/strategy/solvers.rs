@@ -28,7 +28,10 @@ impl<S: Strategy> StrategicSolver<S> {
 }
 
 impl<S: Strategy> Solver for StrategicSolver<S> {
-    fn solve(&self, sudoku: &Sudoku<impl Constraint + Clone>) -> Solution {
+    fn solve<C>(&self, sudoku: &Sudoku<C>) -> Solution
+    where
+        C: Constraint + Clone + 'static
+    {
         let mut sudoku_info = SudokuInfo::from_sudoku(sudoku.clone());
 
         while !sudoku_info.sudoku().grid().is_full() &&
@@ -112,15 +115,20 @@ impl<S: Strategy> StrategicBacktrackingSolver<S> {
     }
 
     #[inline]
-    fn solve_rec_step(&self,
-            sudoku_info: &mut SudokuInfo<impl Constraint + Clone>,
-            column: usize, row: usize, number: usize) -> Solution {
+    fn solve_rec_step<C>(&self, sudoku_info: &mut SudokuInfo<C>,
+        column: usize, row: usize, number: usize) -> Solution
+    where
+        C: Constraint + Clone + 'static
+    {
         sudoku_info.enter_cell(column, row, number)
             .unwrap();
         self.solve_rec(sudoku_info)
     }
 
-    fn solve_rec(&self, sudoku_info: &mut SudokuInfo<impl Constraint + Clone>) -> Solution {
+    fn solve_rec<C>(&self, sudoku_info: &mut SudokuInfo<C>) -> Solution
+    where
+        C: Constraint + Clone + 'static
+    {
         while {
             if let Some(solution) = to_solution(sudoku_info.sudoku()) {
                 return solution;
@@ -174,7 +182,10 @@ impl<S: Strategy> StrategicBacktrackingSolver<S> {
 }
 
 impl<S: Strategy> Solver for StrategicBacktrackingSolver<S> {
-    fn solve(&self, sudoku: &Sudoku<impl Constraint + Clone>) -> Solution {
+    fn solve<C>(&self, sudoku: &Sudoku<C>) -> Solution
+    where
+        C: Constraint + Clone + 'static
+    {
         self.solve_rec(&mut SudokuInfo::from_sudoku(sudoku.clone()))
     }
 }

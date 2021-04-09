@@ -148,7 +148,7 @@ enum Reduction<R, C: Constraint<Reduction = R> + Clone> {
     }
 }
 
-impl<R, C: Constraint<Reduction = R> + Clone> Reduction<R, C> {
+impl<R, C: Constraint<Reduction = R> + Clone + 'static> Reduction<R, C> {
     fn apply<S: Solver>(&self, sudoku: &mut Sudoku<C>, solution: &SudokuGrid,
             solver: &S) {
         match self {
@@ -222,7 +222,10 @@ impl<S: Solver, R: Rng> Reducer<S, R> {
     ///
     /// It is expected that the given `sudoku` is full, i.e. contains no empty
     /// cells.
-    pub fn reduce<C: Constraint + Clone>(&mut self, sudoku: &mut Sudoku<C>) {
+    pub fn reduce<C>(&mut self, sudoku: &mut Sudoku<C>)
+    where
+        C: Constraint + Clone + 'static
+    {
         let reductions = reductions(sudoku);
         let solution = sudoku.grid().clone();
 
@@ -372,7 +375,10 @@ mod tests {
     struct TopLeftSolver;
 
     impl Solver for TopLeftSolver {
-        fn solve(&self, sudoku: &Sudoku<impl Constraint + Clone>) -> Solution {
+        fn solve<C>(&self, sudoku: &Sudoku<C>) -> Solution
+        where
+            C: Constraint + Clone + 'static
+        {
             let size = sudoku.grid().size();
             let cells = size * size;
             let clues = sudoku.grid().count_clues();
