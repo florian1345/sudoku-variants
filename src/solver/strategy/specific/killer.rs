@@ -107,9 +107,13 @@ fn find_options_rec(missing: &[&USizeSet], current_sum: usize,
 fn find_options(missing: &[&USizeSet], current_sum: usize, required_sum: usize,
         size: usize) -> Vec<USizeSet> {
     let mut new_options = vec![USizeSet::new(1, size).unwrap(); missing.len()];
-    let mut numbers = USizeSet::new(1, size).unwrap();
-    find_options_rec(missing, current_sum, required_sum, &mut new_options,
-        &mut numbers, 0);
+
+    if current_sum < required_sum {
+        let mut numbers = USizeSet::new(1, size).unwrap();
+        find_options_rec(missing, current_sum, required_sum, &mut new_options,
+            &mut numbers, 0);
+    }
+
     new_options
 }
 
@@ -187,7 +191,15 @@ mod tests {
         KillerCage,
         KillerConstraint
     };
-    use crate::solver::strategy::SudokuInfo;
+    use crate::solver::{Solution, Solver};
+    use crate::solver::strategy::{
+        CompositeStrategy,
+        NakedSingleStrategy,
+        OnlyCellStrategy,
+        StrategicBacktrackingSolver,
+        SudokuInfo,
+        TupleStrategy
+    };
 
     type DefaultKillerConstraint =
         CompositeConstraint<DefaultConstraint, KillerConstraint>;
@@ -222,5 +234,137 @@ mod tests {
     fn killer_cage_possibilities_strategy_excludes_due_to_repeat() {
         let sudoku_info = applied_killer_example();
         assert!(!sudoku_info.get_options(0, 0).unwrap().contains(3));
+    }
+
+    fn big_killer_example() -> Sudoku<DefaultKillerConstraint> {
+        // This Sudoku is taken from the World Puzzle Federation Sudoku GP 2020
+        // Round 8 Puzzle 10
+        // Puzzle: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2020/2020_SudokuRound8.pdf
+        // Solution: https://gp.worldpuzzle.org/sites/default/files/Puzzles/2020/2020_SudokuRound8_SB.pdf
+
+        let grid = SudokuGrid::parse("3x3;
+             , , , ,4, , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+            5, , , , , , , ,7,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+             , , , , , , , , ,\
+             , , , ,1, , , , ").unwrap();
+        let mut killer_constraint = KillerConstraint::new();
+        killer_constraint.add_cage(
+            KillerCage::new(
+                vec![(0, 0), (1, 0), (2, 0), (3, 0), (0, 1), (0, 2), (0, 3)],
+                35).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(
+                vec![(5, 0), (6, 0), (7, 0), (8, 0), (8, 1), (8, 2), (8, 3)],
+                33).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(1, 1), (1, 2)], 9).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(2, 1), (2, 2)], 15).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(3, 1), (3, 2), (4, 2)], 14).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(4, 1), (5, 1), (5, 2)], 13).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(6, 1), (7, 1)], 12).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(6, 2), (7, 2)], 14).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(1, 3), (2, 3), (1, 4)], 13).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(6, 3), (7, 3), (6, 4)], 14).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(2, 4), (1, 5), (2, 5)], 12).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(7, 4), (6, 5), (7, 5)], 11).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(
+                vec![(0, 5), (0, 6), (0, 7), (0, 8), (1, 8), (2, 8), (3, 8)],
+                35).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(
+                vec![(8, 5), (8, 6), (8, 7), (5, 8), (6, 8), (7, 8), (8, 8)],
+                30).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(1, 6), (2, 6)], 13).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(3, 6), (3, 7), (4, 7)], 13).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(4, 6), (5, 6), (5, 7)], 17).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(6, 6), (6, 7)], 13).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(7, 6), (7, 7)], 16).unwrap()
+        ).unwrap();
+        killer_constraint.add_cage(
+            KillerCage::new(vec![(1, 7), (2, 7)], 11).unwrap()
+        ).unwrap();
+        let constraint = CompositeConstraint::new(DefaultConstraint,
+            killer_constraint);
+        Sudoku::new_with_grid(grid, constraint)
+    }
+
+    fn big_killer_example_solution() -> SudokuGrid {
+        SudokuGrid::parse("3x3;
+            7,5,3,8,4,6,1,2,9,\
+            4,8,6,2,9,1,7,5,3,\
+            2,1,9,7,5,3,6,8,4,\
+            6,4,7,3,2,5,9,1,8,\
+            5,2,1,9,6,8,4,3,7,\
+            9,3,8,1,7,4,2,6,5,\
+            3,9,4,6,8,2,5,7,1,\
+            1,6,5,4,3,7,8,9,2,\
+            8,7,2,5,1,9,3,4,6").unwrap()
+    }
+
+    fn test_big_killer_solver<S: Solver>(solver: S) {
+        let solution = solver.solve(&big_killer_example());
+        let expected = big_killer_example_solution();
+        assert_eq!(Solution::Unique(expected), solution);
+    }
+
+    #[test]
+    fn killer_cage_possibilities_strategic_backtracking_is_sound() {
+        let solver =
+            StrategicBacktrackingSolver::new(KillerCagePossibilitiesStrategy);
+        test_big_killer_solver(solver);
+    }
+
+    #[test]
+    fn complex_killer_strategic_backtracking_is_sound() {
+        let solver =
+            StrategicBacktrackingSolver::new(CompositeStrategy::new(
+                CompositeStrategy::new(
+                    OnlyCellStrategy,
+                    NakedSingleStrategy
+                ),
+                CompositeStrategy::new(
+                    KillerCagePossibilitiesStrategy,
+                    TupleStrategy::new(|_| 3)
+                )
+            ));
+        test_big_killer_solver(solver);
     }
 }
