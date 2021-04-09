@@ -15,6 +15,7 @@ use sudoku_variants::constraint::{
     DefaultConstraint,
     DiagonalsConstraint,
     KnightsMoveConstraint,
+    KillerConstraint,
     KingsMoveConstraint
 };
 use sudoku_variants::solver::{BacktrackingSolver, Solution, Solver};
@@ -23,9 +24,13 @@ use sudoku_variants::solver::strategy::{
     BoundedOptionsBacktrackingStrategy,
     CompositeStrategy,
     NakedSingleStrategy,
+    NoStrategy,
     OnlyCellStrategy,
     StrategicBacktrackingSolver,
     TupleStrategy
+};
+use sudoku_variants::solver::strategy::specific::{
+    KillerCagePossibilitiesStrategy
 };
 
 use serde::Deserialize;
@@ -33,141 +38,174 @@ use serde::Deserialize;
 use std::fs;
 use std::time::Duration;
 
-// Note: When solving/reducing Sudoku with additional constraints, there are
-// often less clues, leading to higher runtimes. We may therefore want to run
-// those benchmarks with less examples.
-
-// Explanation of benchmark classes:
-//
-// backtracking: A simple BacktrackingSolver which does not use strategies.
-// simple strategic backtracking: A StrategicBacktrackingSolver which uses only
-//                                the NakedSingleStrategy.
-// fastest strategic backtracking: A StrategicBacktrackingSolver which uses the
-//                                 combination of strategies that yields the
-//                                 best benchmark results.
-// complex strategic backtracking: A StrategicBacktrackingSolver which uses all
-//                                 available strategies with sensible settings.
-
 const MEASUREMENT_TIME_SECS: u64 = 30;
-const DEFAULT_SAMPLE_SIZE: usize = 100;
-const CONSTRAINED_SAMPLE_SIZE: usize = 100;
-
 const BENCHDATA_DIR: &'static str = "benchdata/";
 const TASK_FILE_EXT: &'static str = ".json";
 
 #[derive(Deserialize)]
-struct Task<C: Constraint + Clone> {
+#[serde(rename_all = "snake_case")]
+enum SolverType {
+
+    /// Basic backtracking without strategy.
+    Basic,
+
+    /// Strategic backtracking with [NoStrategy].
+    NoStrategy,
+
+    /// Strategic backtracking with [OnlyCellStrategy].
+    OnlyCellStrategy,
+
+    /// Strategic backtracking with [OnlyCellStrategy] and
+    /// [NakedSingleStrategy].
+    SimpleStrategy,
+
+    /// Strategic backtracking with all general strategies.
+    ComplexStrategy,
+
+    /// Strategic backtracking with the [KillerCagePossibilitiesStrategy].
+    KillerStrategy
+}
+
+#[derive(Deserialize)]
+struct Task<C: Constraint + Clone + 'static> {
     puzzle: Sudoku<C>,
     solution: SudokuGrid
 }
 
 #[derive(Deserialize)]
-struct Tasks<C: Constraint + Clone> {
+struct Tasks<C: Constraint + Clone + 'static> {
     tasks: Vec<Task<C>>,
-    only_fast: bool
+    solvers: Vec<SolverType>,
+    sample_size: usize
 }
 
-fn solve_task<C: Constraint + Clone, S: Solver>(task: &Task<C>, solver: &S) {
+fn solve_task<C, S>(task: &Task<C>, solver: &S)
+where
+    C: Constraint + Clone + 'static,
+    S: Solver
+{
     let computed_solution = solver.solve(&task.puzzle);
     assert_eq!(Solution::Unique(task.solution.clone()), computed_solution);
 }
 
-fn solve_tasks<C: Constraint + Clone, S: Solver>(tasks: &Vec<Task<C>>,
-        solver: &S) {
+fn solve_tasks<C, S>(tasks: &Vec<Task<C>>, solver: &S)
+where
+    C: Constraint + Clone + 'static,
+    S: Solver
+{
     for task in tasks {
         solve_task(task, solver);
     }
 }
 
-fn benchmark_solver_constraint<C, S>(group: &mut BenchmarkGroup<WallTime>,
-    id: &str, sample_size: usize, solver: &S, fast: bool)
+fn bench_solver<C, S>(group: &mut BenchmarkGroup<WallTime>, tasks: &Tasks<C>,
+    id: &str, solver: S)
 where
-    for<'de> C: Constraint + Clone + Deserialize<'de>,
+    for<'de> C: Constraint + Clone + Deserialize<'de> + 'static,
     S: Solver
 {
+    group.bench_function(id,
+        |b| b.iter(|| solve_tasks(&tasks.tasks, &solver)));
+}
+
+fn benchmark_constraint<C>(c: &mut Criterion, id: &str)
+where
+    for<'de> C: Constraint + Clone + Deserialize<'de> + 'static
+{
+    let mut group = c.benchmark_group(id);
     let mut file = String::from(BENCHDATA_DIR);
     file.push_str(id);
     file.push_str(TASK_FILE_EXT);
     let json = fs::read_to_string(file).unwrap();
     let tasks: Tasks<C> = serde_json::from_str(&json).unwrap();
 
-    if tasks.only_fast && !fast {
-        return;
-    } 
-
     group.measurement_time(Duration::from_secs(MEASUREMENT_TIME_SECS));
-    group.sample_size(sample_size);
+    group.sample_size(tasks.sample_size);
     group.sampling_mode(SamplingMode::Flat);
-    group.bench_function(id, |b| b.iter(|| solve_tasks(&tasks.tasks, solver)));
+
+    for solver in &tasks.solvers {
+        match solver {
+            SolverType::Basic =>
+                bench_solver(&mut group, &tasks, "basic", BacktrackingSolver),
+            SolverType::NoStrategy =>
+                bench_solver(&mut group, &tasks, "no-strategy",
+                    StrategicBacktrackingSolver::new(NoStrategy)),
+            SolverType::OnlyCellStrategy =>
+                bench_solver(&mut group, &tasks, "only-cell-strategy",
+                    StrategicBacktrackingSolver::new(OnlyCellStrategy)),
+            SolverType::SimpleStrategy =>
+                bench_solver(&mut group, &tasks, "simple-strategy",
+                    StrategicBacktrackingSolver::new(
+                        CompositeStrategy::new(
+                            OnlyCellStrategy,
+                            NakedSingleStrategy))),
+            SolverType::ComplexStrategy =>
+                bench_solver(&mut group, &tasks, "complex-strategy",
+                    StrategicBacktrackingSolver::new(
+                        CompositeStrategy::new(
+                            CompositeStrategy::new(
+                                OnlyCellStrategy,
+                                NakedSingleStrategy
+                            ),
+                            CompositeStrategy::new(
+                                TupleStrategy::new(|_| 4),
+                                CompositeStrategy::new(
+                                    BoundedOptionsBacktrackingStrategy::new(
+                                        |_| 4, |_| None, OnlyCellStrategy),
+                                    BoundedCellsBacktrackingStrategy::new(
+                                        |_| 4, |_| None, OnlyCellStrategy)
+                                    ))))),
+            SolverType::KillerStrategy =>
+                bench_solver(&mut group, &tasks, "killer-strategy",
+                    StrategicBacktrackingSolver::new(
+                        KillerCagePossibilitiesStrategy))
+        }
+    }
 }
 
-type DefaultAndDiagonalsConstraint =
+type DefaultDiagonalsConstraint =
     CompositeConstraint<DefaultConstraint, DiagonalsConstraint>;
-type DefaultAndKnightsMoveConstraint =
+type DefaultKnightsMoveConstraint =
     CompositeConstraint<DefaultConstraint, KnightsMoveConstraint>;
-type DefaultAndKingsMoveConstraint =
+type DefaultKingsMoveConstraint =
     CompositeConstraint<DefaultConstraint, KingsMoveConstraint>;
-type DefaultAndAdjacentConsecutiveConstraint =
+type DefaultAdjacentConsecutiveConstraint =
     CompositeConstraint<DefaultConstraint, AdjacentConsecutiveConstraint>;
+type DefaultKillerConstraint =
+    CompositeConstraint<DefaultConstraint, KillerConstraint>;
 
-fn benchmark_solver<S: Solver>(c: &mut Criterion, group_name: &str,
-        solver: S, fast: bool) {
-    let mut group = c.benchmark_group(group_name);
-
-    benchmark_solver_constraint::<DefaultConstraint, _>(&mut group, "default",
-        DEFAULT_SAMPLE_SIZE, &solver, fast);
-    benchmark_solver_constraint::<DefaultAndDiagonalsConstraint, _>(&mut group,
-        "diagonals", CONSTRAINED_SAMPLE_SIZE, &solver, fast);
-    benchmark_solver_constraint::<DefaultAndKnightsMoveConstraint, _>(
-        &mut group, "knights-move", CONSTRAINED_SAMPLE_SIZE, &solver, fast);
-    benchmark_solver_constraint::<DefaultAndKingsMoveConstraint, _>(&mut group,
-        "kings-move", CONSTRAINED_SAMPLE_SIZE, &solver, fast);
-    benchmark_solver_constraint::<DefaultAndAdjacentConsecutiveConstraint, _>(
-        &mut group, "adjacent-consecutive", CONSTRAINED_SAMPLE_SIZE, &solver,
-            fast);
+fn benchmark_default(c: &mut Criterion) {
+    benchmark_constraint::<DefaultConstraint>(c, "default")
 }
 
-fn benchmark_backtracking(c: &mut Criterion) {
-    benchmark_solver(c, "backtracking", BacktrackingSolver, false)
+fn benchmark_diagonals(c: &mut Criterion) {
+    benchmark_constraint::<DefaultDiagonalsConstraint>(c, "diagonals")
 }
 
-fn benchmark_simple_strategic_backtracking(c: &mut Criterion) {
-    benchmark_solver(c, "simple strategic backtracking",
-        StrategicBacktrackingSolver::new(NakedSingleStrategy), true)
+fn benchmark_knights_move(c: &mut Criterion) {
+    benchmark_constraint::<DefaultKnightsMoveConstraint>(c, "knights-move")
 }
 
-fn benchmark_fastest_strategic_backtracking(c: &mut Criterion) {
-    benchmark_solver(c, "fastest strategic backtracking",
-        StrategicBacktrackingSolver::new(CompositeStrategy::new(
-            NakedSingleStrategy, OnlyCellStrategy)), true)
+fn benchmark_kings_move(c: &mut Criterion) {
+    benchmark_constraint::<DefaultKingsMoveConstraint>(c, "kings-move")
 }
 
-fn benchmark_complex_strategic_backtracking(c: &mut Criterion) {
-    benchmark_solver(c, "complex strategic backtracking",
-        StrategicBacktrackingSolver::new(CompositeStrategy::new(
-            CompositeStrategy::new(
-                NakedSingleStrategy, OnlyCellStrategy),
-            CompositeStrategy::new(
-                TupleStrategy::new(|size| size - 2),
-                CompositeStrategy::new(
-                    BoundedCellsBacktrackingStrategy::new(|size| size - 2,
-                        |_| Some(1), OnlyCellStrategy),
-                    BoundedOptionsBacktrackingStrategy::new(|_| 2,
-                        |_| Some(1), CompositeStrategy::new(
-                            NakedSingleStrategy, OnlyCellStrategy
-                        )
-                    )
-                )
-            )
-        )), true
-    )
+fn benchmark_adjacent_consecutive(c: &mut Criterion) {
+    benchmark_constraint::<DefaultAdjacentConsecutiveConstraint>(c,
+        "adjacent-consecutive")
+}
+
+fn benchmark_killer(c: &mut Criterion) {
+    benchmark_constraint::<DefaultKillerConstraint>(c, "killer")
 }
 
 criterion_group!(all,
-    benchmark_backtracking,
-    benchmark_simple_strategic_backtracking,
-    benchmark_fastest_strategic_backtracking,
-    benchmark_complex_strategic_backtracking
+    benchmark_default,
+    benchmark_diagonals,
+    benchmark_knights_move,
+    benchmark_kings_move,
+    benchmark_adjacent_consecutive,
+    benchmark_killer
 );
 
 criterion_main!(all);

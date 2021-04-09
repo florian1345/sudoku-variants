@@ -930,5 +930,6 @@
       }
     }
   ],
-  "only_fast": true
+  "solvers": [ "killer_strategy" ],
+  "sample_size": 10
 }
