@@ -176,5 +176,12 @@
       }
     }
   ],
-  "only_fast": false
+  "solvers": [
+    "basic",
+    "no_strategy",
+    "only_cell_strategy",
+    "simple_strategy",
+    "complex_strategy"
+  ],
+  "sample_size": 100
 }
