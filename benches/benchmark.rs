@@ -16,7 +16,8 @@ use sudoku_variants::constraint::{
     DiagonalsConstraint,
     KnightsMoveConstraint,
     KillerConstraint,
-    KingsMoveConstraint
+    KingsMoveConstraint,
+    ThermoConstraint
 };
 use sudoku_variants::solver::{BacktrackingSolver, Solution, Solver};
 use sudoku_variants::solver::strategy::{
@@ -30,7 +31,8 @@ use sudoku_variants::solver::strategy::{
     TupleStrategy
 };
 use sudoku_variants::solver::strategy::specific::{
-    KillerCagePossibilitiesStrategy
+    KillerCagePossibilitiesStrategy,
+    ThermometerFollowingStrategy
 };
 
 use serde::Deserialize;
@@ -63,7 +65,10 @@ enum SolverType {
     ComplexStrategy,
 
     /// Strategic backtracking with the [KillerCagePossibilitiesStrategy].
-    KillerStrategy
+    KillerStrategy,
+
+    /// Strategic backtracking with the [ThermometerFollowingStrategy].
+    ThermoOnlyCellStrategy
 }
 
 #[derive(Deserialize)]
@@ -158,7 +163,13 @@ where
             SolverType::KillerStrategy =>
                 bench_solver(&mut group, &tasks, "killer-strategy",
                     StrategicBacktrackingSolver::new(
-                        KillerCagePossibilitiesStrategy))
+                        KillerCagePossibilitiesStrategy)),
+            SolverType::ThermoOnlyCellStrategy =>
+                bench_solver(&mut group, &tasks, "thermo-only-cell-strategy",
+                    StrategicBacktrackingSolver::new(
+                        CompositeStrategy::new(
+                            ThermometerFollowingStrategy,
+                            OnlyCellStrategy)))
         }
     }
 }
@@ -173,6 +184,8 @@ type DefaultAdjacentConsecutiveConstraint =
     CompositeConstraint<DefaultConstraint, AdjacentConsecutiveConstraint>;
 type DefaultKillerConstraint =
     CompositeConstraint<DefaultConstraint, KillerConstraint>;
+type DefaultThermoConstraint =
+    CompositeConstraint<DefaultConstraint, ThermoConstraint>;
 
 fn benchmark_default(c: &mut Criterion) {
     benchmark_constraint::<DefaultConstraint>(c, "default")
@@ -199,13 +212,18 @@ fn benchmark_killer(c: &mut Criterion) {
     benchmark_constraint::<DefaultKillerConstraint>(c, "killer")
 }
 
+fn benchmark_thermo(c: &mut Criterion) {
+    benchmark_constraint::<DefaultThermoConstraint>(c, "thermo")
+}
+
 criterion_group!(all,
     benchmark_default,
     benchmark_diagonals,
     benchmark_knights_move,
     benchmark_kings_move,
     benchmark_adjacent_consecutive,
-    benchmark_killer
+    benchmark_killer,
+    benchmark_thermo
 );
 
 criterion_main!(all);

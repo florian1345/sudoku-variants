@@ -94,7 +94,7 @@
           "block_width": 3,
           "block_height": 3,
           "cells": [
-            null,    8, null, null, null, null, null,    3, null,
+            null,    7, null, null, null, null, null,    3, null,
             null, null, null, null, null, null, null, null, null,
             null, null, null, null, null, null, null, null, null,
             null, null, null, null, null, null, null, null, null,
@@ -230,11 +230,6 @@
       }
     }
   ],
-  "solvers": [
-    "no_strategy",
-    "only_cell_strategy",
-    "simple_strategy",
-    "complex_strategy"
-  ],
+  "solvers": [ "thermo_only_cell_strategy" ],
   "sample_size": 100
 }

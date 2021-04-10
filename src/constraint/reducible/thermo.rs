@@ -302,6 +302,11 @@ impl ThermoConstraint {
         }
     }
 
+    /// Gets the vector of all [Thermometer]s of this constraint.
+    pub fn thermometers(&self) -> &Vec<Thermometer> {
+        &self.thermometers
+    }
+
     fn shorten_thermometer(&mut self, index: usize) -> ThermoRevertInfo {
         let cells = self.thermometers[index].cells().clone();
         let mut cells_iter_rev = cells.into_iter().rev();
