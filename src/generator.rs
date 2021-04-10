@@ -29,7 +29,8 @@ impl Generator<ThreadRng> {
     }
 }
 
-fn shuffle<T>(rng: &mut impl Rng, values: impl Iterator<Item = T>) -> Vec<T> {
+pub(crate) fn shuffle<T>(rng: &mut impl Rng, values: impl Iterator<Item = T>)
+        -> Vec<T> {
     let mut vec: Vec<T> = values.collect();
     let len = vec.len();
 
