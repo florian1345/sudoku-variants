@@ -112,11 +112,9 @@
 //! Sudoku therefore implements `Clone`, which requires its constraint to be
 //! cloneable aswell. Note that `Clone` is not required by the `Constraint`
 //! trait, since that would make it impossible to create `Constraint`-trait
-//! objects, which are used in the `DynamicConstraint`. Instead,
-//! [CloneConstraint], which clones a trait object, is required for elements of
-//! a `DynamicConstraint`. However, if you derive `Clone`, you do not need to
-//! worry about `CloneConstraint`, since it is implemented for every constraint
-//! that implements `Clone` by default.
+//! objects, which are used in the `DynamicConstraint`. Instead, the library
+//! internally wraps constraints to create cloneable trait objects. This
+//! automatically works if your constraint implements `Clone`.
 
 // TODO add an example for a custom, reducible constraint
 

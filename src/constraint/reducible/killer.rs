@@ -119,7 +119,7 @@ impl Display for KillerError {
     }
 }
 
-/// A reducible [Constraint](crate:constraint::Constraint) which adds
+/// A reducible [Constraint](crate::constraint::Constraint) which adds
 /// [KillerCage]s to the grid, which contain some cells and annotate some sum.
 /// The constraint requires that the sum of all digits in a cage is equal to
 /// the annotated number. Additionally, digits may not repeat in a cage.

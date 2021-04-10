@@ -15,9 +15,11 @@ use std::any::Any;
 /// allows the construction of complex constraints by nesting composite
 /// constraints.
 ///
-/// As an example, a constraint with [DefaultConstraint],
-/// [DiagonalsConstraint], and [KnightsMoveConstraint] would be constructed
-/// as follows:
+/// As an example, a constraint with
+/// [DefaultConstraint](crate::constraint::DefaultConstraint),
+/// [DiagonalsConstraint](crate::constraint::DiagonalsConstraint), and
+/// [KnightsMoveConstraint](crate::constraint::KnightsMoveConstraint) would be
+/// constructed as follows:
 ///
 /// ```
 /// use sudoku_variants::constraint::{
