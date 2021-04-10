@@ -745,6 +745,16 @@ where
     iter.any(|e| !set.insert(e))
 }
 
+/// Returns the absolute difference between the two values.
+pub(crate) fn abs_diff(a: usize, b: usize) -> usize {
+    if a < b {
+        b - a
+    }
+    else {
+        a - b
+    }
+}
+
 #[cfg(test)]
 mod tests {
 

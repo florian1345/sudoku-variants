@@ -3,5 +3,7 @@
 //! should not have to `use` anything from this module directly.
 
 pub mod killer;
+pub mod thermo;
 
 pub use killer::{KillerCage, KillerConstraint, KillerError};
+pub use thermo::{ThermoConstraint, ThermoError, Thermometer};
