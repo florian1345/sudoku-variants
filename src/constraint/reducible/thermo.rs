@@ -68,6 +68,10 @@ pub struct Thermometer {
     cells: Vec<(usize, usize)>
 }
 
+// Thermometers are guaranteed to contain at least 2 cells, so is_empty would
+// be redundant.
+
+#[allow(clippy::len_without_is_empty)]
 impl Thermometer {
 
     /// Creates a new thermometer with the given cells. They are provided in
@@ -205,7 +209,7 @@ impl ThermoConstraint {
         let empty = HashSet::new();
         let bulb = cells.next().unwrap();
         let bulb_sharer_indices = self.cell_assignment.get(bulb)
-            .unwrap_or_else(|| &empty);
+            .unwrap_or(&empty);
         let bulb_sharers: Vec<&Thermometer> = bulb_sharer_indices.iter()
             .map(|&i| &self.thermometers[i])
             .collect();
@@ -222,7 +226,7 @@ impl ThermoConstraint {
 
         for cell in cells {
             let sharer_indices = self.cell_assignment.get(cell)
-                .unwrap_or_else(|| &empty);
+                .unwrap_or(&empty);
 
             if !sharer_indices.is_subset(prev_sharer_indices) {
                 return Err(ThermoError::CollidingThermometers);
@@ -358,6 +362,12 @@ impl TryFrom<Vec<Thermometer>> for ThermoConstraint {
         }
 
         Ok(constraint)
+    }
+}
+
+impl Default for ThermoConstraint {
+    fn default() -> ThermoConstraint {
+        ThermoConstraint::new()
     }
 }
 
