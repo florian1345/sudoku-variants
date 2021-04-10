@@ -11,7 +11,7 @@
 //! information.
 //!
 //! `sudoku-variants` offers a small library of pre-defined strategies you can
-//! use. See the [impls] module for further details.
+//! use. See the [general] and [specific] modules for further details.
 //!
 //! # Defining difficulties using strategies
 //!
