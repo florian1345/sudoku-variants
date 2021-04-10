@@ -5,7 +5,10 @@
 
 use crate::SudokuGrid;
 use crate::constraint::{Constraint, Group, ReductionError};
+use crate::generator;
 use crate::util;
+
+use rand::Rng;
 
 use serde::{Deserialize, Serialize};
 
@@ -186,6 +189,84 @@ pub struct ThermoConstraint {
     cell_assignment: HashMap<(usize, usize), HashSet<usize>>
 }
 
+fn neighbors(column: usize, row: usize, size: usize) -> Vec<(usize, usize)> {
+    let mut result = Vec::new();
+
+    if column > 0 {
+        if row > 0 {
+            result.push((column - 1, row - 1));
+        }
+
+        result.push((column - 1, row));
+
+        if row < size - 1 {
+            result.push((column - 1, row + 1));
+        }
+    }
+
+    if row > 0 {
+        result.push((column, row - 1));
+    }
+
+    if row < size - 1 {
+        result.push((column, row + 1));
+    }
+
+    if column < size - 1 {
+        if row > 0 {
+            result.push((column + 1, row - 1));
+        }
+
+        result.push((column + 1, row));
+
+        if row < size - 1 {
+            result.push((column + 1, row + 1));
+        }
+    }
+
+    result
+}
+
+fn get_cell(grid: &SudokuGrid, column: usize, row: usize) -> usize {
+    grid.get_cell(column, row).unwrap().unwrap()
+}
+
+fn grow_thermometer<R: Rng>(bulb_column: usize, bulb_row: usize,
+        grid: &SudokuGrid, occupied_cells: &HashSet<(usize, usize)>,
+        rng: &mut R) -> Option<Thermometer> {
+    let size = grid.size();
+    let mut column = bulb_column;
+    let mut row = bulb_row;
+    let mut thermometer_cells = vec![(column, row)];
+
+    loop {
+        let number = grid.get_cell(column, row).unwrap().unwrap();
+        let valid_neighbors = neighbors(column, row, size).into_iter()
+            .filter(|cell| !occupied_cells.contains(cell))
+            .filter(|&(column, row)| get_cell(grid, column, row) > number)
+            .collect::<Vec<_>>();
+
+        if valid_neighbors.is_empty() {
+            break;
+        }
+
+        let index =
+            rng.gen_range(0..valid_neighbors.len());
+        let (neighbor_column, neighbor_row) = valid_neighbors[index];
+
+        thermometer_cells.push((neighbor_column, neighbor_row));
+        column = neighbor_column;
+        row = neighbor_row;
+    }
+
+    if thermometer_cells.len() > 1 {
+        Some(Thermometer::new(thermometer_cells).unwrap())
+    }
+    else {
+        None
+    }
+}
+
 impl ThermoConstraint {
 
     /// Creates a new thermo constraint without any thermometers.
@@ -194,6 +275,51 @@ impl ThermoConstraint {
             thermometers: Vec::new(),
             cell_assignment: HashMap::new()
         }
+    }
+
+    /// Generates a random thermo-constraint for the given grid. All
+    /// thermometers are guaranteed not to intersect and it is ensured that no
+    /// more thermometers could fit on the grid.
+    ///
+    /// # Arguments
+    ///
+    /// * `grid`: A *full* [SudokuGrid] for which the generated constraint
+    /// shall be satisfied.
+    /// * `rng`: An [Rng] to make random decisions for the thermometer layout.
+    ///
+    /// # Panics
+    ///
+    /// If the `grid` is not full.
+    pub fn generate_for<R>(grid: &SudokuGrid, rng: &mut R) -> ThermoConstraint
+    where
+        R: Rng
+    {
+        let size = grid.size();
+        let mut result = ThermoConstraint::new();
+        let mut occupied_cells = HashSet::new();
+        let cells = (0..size)
+            .flat_map(|c| (0..size)
+                .map(move |r| (c, r)));
+        let cells = generator::shuffle(rng, cells);
+
+        for (column, row) in cells {
+            if occupied_cells.contains(&(column, row)) {
+                continue;
+            }
+
+            let thermometer =
+                grow_thermometer(column, row, grid, &occupied_cells, rng);
+
+            if let Some(thermometer) = thermometer {
+                for &cell in thermometer.cells() {
+                    occupied_cells.insert(cell);
+                }
+
+                result.add_thermometer(thermometer).unwrap();
+            }
+        }
+
+        result
     }
 
     /// Verifies the given [Thermometer] for addition to this constraint. First
@@ -775,5 +901,19 @@ mod tests {
         assert!(!constraint.check_number(&grid, 0, 1, 1));
         assert!(!constraint.check_number(&grid, 2, 1, 3));
         assert!(!constraint.check_number(&grid, 2, 1, 2));
+    }
+
+    #[test]
+    fn generated_thermo_constraint_is_valid_and_not_empty() {
+        let grid = SudokuGrid::parse("2x2;
+            1,2,3,4,
+            4,3,2,1,
+            2,4,1,3,
+            3,1,4,2").unwrap();
+        let constraint =
+            ThermoConstraint::generate_for(&grid, &mut rand::thread_rng());
+
+        assert!(!constraint.thermometers().is_empty());
+        assert!(constraint.check(&grid));
     }
 }
