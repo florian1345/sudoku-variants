@@ -23,8 +23,8 @@ use std::slice::Iter;
 /// numbers. This generally has better performance than a `HashSet`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct USizeSet {
-    min: usize,
-    max: usize,
+    lower: usize,
+    upper: usize,
     len: usize,
     content: Vec<u64>
 }
@@ -34,7 +34,7 @@ pub struct USizeSet {
 pub enum USizeSetError {
 
     /// Indicates that the bounds provided in the constructor are invalid, that
-    /// is, the minimum is greater than the maximum.
+    /// is, the lower bound is greater than the upper bound.
     InvalidBounds,
 
     /// Indicates that an operation was performed on two or more `USizeSet`s
@@ -101,7 +101,7 @@ impl<'a> USizeSetIter<'a> {
         };
 
         USizeSetIter {
-            offset: set.min,
+            offset: set.lower,
             current: first_bit_iterator,
             content: iter
         }
@@ -136,27 +136,27 @@ impl USizeSet {
     ///
     /// # Arguments
     ///
-    /// * `min`: The minimum value that can be contained in the created set.
+    /// * `lower`: The minimum value that can be contained in the created set.
     /// Any values lower than that will yield a `USizeSetError::OutOfBounds` if
-    /// inserted or removed. Must be less than or equal to `max`.
-    /// * `max`: The maximum value that can be contained in the created set.
+    /// inserted or removed. Must be less than or equal to `upper`.
+    /// * `upper`: The maximum value that can be contained in the created set.
     /// Any values higher than that will yield a `USizeSetError::OutOfBounds`
-    /// if inserted or removed. Must be greater than or equal to `min`.
+    /// if inserted or removed. Must be greater than or equal to `lower`.
     ///
     /// # Errors
     ///
-    /// If `min > max`. In that case, a `USizeSetError::InvalidBounds` is
+    /// If `lower > upper`. In that case, a `USizeSetError::InvalidBounds` is
     /// returned.
-    pub fn new(min: usize, max: usize) -> USizeSetResult<USizeSet> {
-        if min > max {
+    pub fn new(lower: usize, upper: usize) -> USizeSetResult<USizeSet> {
+        if lower > upper {
             Err(USizeSetError::InvalidBounds)
         }
         else {
-            let required_words = (max - min + 64) >> 6;
+            let required_words = (upper - lower + 64) >> 6;
 
             Ok(USizeSet {
-                min,
-                max,
+                lower,
+                upper,
                 len: 0,
                 content: vec![0u64; required_words]
             })
@@ -168,22 +168,23 @@ impl USizeSet {
     ///
     /// # Arguments
     ///
-    /// * `min`: The minimum value that can be contained in the created set.
+    /// * `lower`: The minimum value that can be contained in the created set.
     /// Any values lower than that will yield a `USizeSetError::OutOfBounds` if
-    /// inserted or removed. Must be less than or equal to `max`.
-    /// * `max`: The maximum value that can be contained in the created set.
+    /// inserted or removed. Must be less than or equal to `upper`.
+    /// * `upper`: The maximum value that can be contained in the created set.
     /// Any values higher than that will yield a `USizeSetError::OutOfBounds`
-    /// if inserted or removed. Must be greater than or equal to `min`.
+    /// if inserted or removed. Must be greater than or equal to `lower`.
     /// * `content`: The only element contained by the created set. Must be
     /// within the bounds.
     ///
     /// # Errors
     ///
-    /// * `USizeSetError::InvalidBounds`: If `min > max`.
-    /// * `USizeSetError::OutOfBounds`: If `content < min` or `content > max`.
-    pub fn singleton(min: usize, max: usize, content: usize)
+    /// * `USizeSetError::InvalidBounds`: If `lower > upper`.
+    /// * `USizeSetError::OutOfBounds`: If `content < lower` or
+    /// `content > upper`.
+    pub fn singleton(lower: usize, upper: usize, content: usize)
             -> USizeSetResult<USizeSet> {
-        let mut result = USizeSet::new(min, max)?;
+        let mut result = USizeSet::new(lower, upper)?;
         result.insert(content)?;
         Ok(result)
     }
@@ -193,26 +194,26 @@ impl USizeSet {
     ///
     /// # Arguments
     ///
-    /// * `min`: The minimum value contained in the created set, which is also
-    /// the minimum that can be contained. Any values lower than this will
+    /// * `lower`: The minimum value contained in the created set, which is
+    /// also the minimum that can be contained. Any values lower than this will
     /// yield a `USizeSetError::OutOfBounds` if inserted or removed. Must be
-    /// less than or equal to `max`.
-    /// * `max`: The maximum value contained in the created set, which is also
-    /// the maximum value that can be contained. Any values higher than this
-    /// will yield a `USizeSetError::OutOfBounds` if inserted or removed. Must
-    /// be greater than or equal to `min`.
+    /// less than or equal to `upper`.
+    /// * `upper`: The maximum value contained in the created set, which is
+    /// also the maximum value that can be contained. Any values higher than
+    /// this will yield a `USizeSetError::OutOfBounds` if inserted or removed.
+    /// Must be greater than or equal to `lower`.
     ///
     /// # Errors
     ///
-    /// If `min > max`. In that case, a `USizeSetError::InvalidBounds` is
+    /// If `lower > upper`. In that case, a `USizeSetError::InvalidBounds` is
     /// returned.
-    pub fn range(min: usize, max: usize) -> USizeSetResult<USizeSet> {
-        if min > max {
+    pub fn range(lower: usize, upper: usize) -> USizeSetResult<USizeSet> {
+        if lower > upper {
             Err(USizeSetError::InvalidBounds)
         }
         else {
             let mut content = Vec::new();
-            let ones = max - min + 1;
+            let ones = upper - lower + 1;
             let ones_words = ones / U64_BIT_SIZE;
 
             for _ in 0..ones_words {
@@ -226,8 +227,8 @@ impl USizeSet {
             }
 
             Ok(USizeSet {
-                min,
-                max,
+                lower,
+                upper,
                 len: ones,
                 content
             })
@@ -235,11 +236,11 @@ impl USizeSet {
     }
 
     fn compute_index(&self, number: usize) -> USizeSetResult<(usize, u64)> {
-        if number < self.min || number > self.max {
+        if number < self.lower || number > self.upper {
             Err(USizeSetError::OutOfBounds)
         }
         else {
-            let index = number - self.min;
+            let index = number - self.lower;
             let word_index = index >> 6;
             let sub_word_index = index & 63;
             let mask = 1u64 << sub_word_index;
@@ -248,13 +249,41 @@ impl USizeSet {
     }
 
     /// Returns the minimum value that this set can contain (inclusive).
-    pub fn min(&self) -> usize {
-        self.min
+    pub fn lower(&self) -> usize {
+        self.lower
     }
 
     /// Returns the maximum value that this set can contain (inclusive).
-    pub fn max(&self) -> usize {
-        self.max
+    pub fn upper(&self) -> usize {
+        self.upper
+    }
+
+    /// Gets the minimum element this set contains, or `None` if it is empty.
+    pub fn min(&self) -> Option<usize> {
+        for (index, &content) in self.content.iter().enumerate() {
+            let trailing_zeros = content.trailing_zeros() as usize;
+
+            if trailing_zeros < U64_BIT_SIZE {
+                let offset = index * U64_BIT_SIZE + trailing_zeros;
+                return Some(self.lower + offset);
+            }
+        }
+
+        None
+    }
+
+    /// Gets the maximum element this set contains, or `None` if it is empty.
+    pub fn max(&self) -> Option<usize> {
+        for (index, &content) in self.content.iter().enumerate().rev() {
+            let leading_zeros = content.leading_zeros() as usize;
+
+            if leading_zeros < U64_BIT_SIZE {
+                let offset = (index + 1) * U64_BIT_SIZE - leading_zeros - 1;
+                return Some(self.lower + offset);
+            }
+        }
+
+        None
     }
 
     /// Indicates whether this set contains the given number, in which case
@@ -278,8 +307,8 @@ impl USizeSet {
     ///
     /// # Errors
     ///
-    /// If `number` is less than [USizeSet::min] or greater than
-    /// [USizeSet::max]. In that case, `USizeSetError::OutOfBounds` is
+    /// If `number` is less than [USizeSet::lower] or greater than
+    /// [USizeSet::upper]. In that case, `USizeSetError::OutOfBounds` is
     /// returned.
     pub fn insert(&mut self, number: usize) -> USizeSetResult<bool> {
         let (word_index, mask) = self.compute_index(number)?;
@@ -304,8 +333,8 @@ impl USizeSet {
     ///
     /// # Errors
     ///
-    /// If `number` is less than [USizeSet::min] or greater than
-    /// [USizeSet::max]. In that case, `USizeSetError::OutOfBounds` is
+    /// If `number` is less than [USizeSet::lower] or greater than
+    /// [USizeSet::upper]. In that case, `USizeSetError::OutOfBounds` is
     /// returned.
     pub fn remove(&mut self, number: usize) -> USizeSetResult<bool> {
         let (word_index, mask) = self.compute_index(number)?;
@@ -358,7 +387,7 @@ impl USizeSet {
 
     fn op_assign(&mut self, other: &USizeSet, op: impl Fn(u64, u64) -> u64)
             -> USizeSetResult<bool> {
-        if self.min() != other.min() || self.max() != other.max() {
+        if self.lower() != other.lower() || self.upper() != other.upper() {
             Err(USizeSetError::DifferentBounds)
         }
         else {
@@ -376,9 +405,10 @@ impl USizeSet {
         }
     }
 
-    fn op(&self, other: &USizeSet,
-            op_assign: impl Fn(&mut USizeSet, &USizeSet) -> USizeSetResult<bool>)
-            -> USizeSetResult<USizeSet> {
+    fn op<F>(&self, other: &USizeSet, op_assign: F) -> USizeSetResult<USizeSet>
+    where
+        F: Fn(&mut USizeSet, &USizeSet) -> USizeSetResult<bool>
+    {
         let mut clone = self.clone();
         op_assign(&mut clone, other)?;
         Ok(clone)
@@ -397,8 +427,8 @@ impl USizeSet {
     ///
     /// # Errors
     ///
-    /// If either the minimum or maximum of this set and `other` are different.
-    /// In that case, `USizeError::DifferentBounds` is returned.
+    /// If either the lower or upper bound of this set and `other` are
+    /// different. In that case, `USizeError::DifferentBounds` is returned.
     pub fn union_assign(&mut self, other: &USizeSet) -> USizeSetResult<bool> {
         self.op_assign(other, u64::bitor)
     }
@@ -413,7 +443,7 @@ impl USizeSet {
     ///
     /// # Errors
     ///
-    /// If the minimum or maximum of this set and `other` are different. In
+    /// If the lower or upper bound of this set and `other` are different. In
     /// that case, `USizeError::DifferentBounds` is returned.
     pub fn union(&self, other: &USizeSet) -> USizeSetResult<USizeSet> {
         self.op(other, USizeSet::union_assign)
@@ -433,7 +463,7 @@ impl USizeSet {
     ///
     /// # Errors
     ///
-    /// If the minimum or maximum of this set and `other` are different. In
+    /// If the lower or upper bound of this set and `other` are different. In
     /// that case, `USizeError::DifferentBounds` is returned.
     pub fn intersect_assign(&mut self, other: &USizeSet)
             -> USizeSetResult<bool> {
@@ -450,7 +480,7 @@ impl USizeSet {
     ///
     /// # Errors
     ///
-    /// If the minimum or maximum of this set and `other` are different. In
+    /// If the lower or upper bound of this set and `other` are different. In
     /// that case, `USizeError::DifferentBounds` is returned.
     pub fn intersect(&self, other: &USizeSet) -> USizeSetResult<USizeSet> {
         self.op(other, USizeSet::intersect_assign)
@@ -471,7 +501,7 @@ impl USizeSet {
     ///
     /// # Errors
     ///
-    /// If the minimum or maximum of this set and `other` are different. In
+    /// If the lower or upper bound of this set and `other` are different. In
     /// that case, `USizeError::DifferentBounds` is returned.
     pub fn difference_assign(&mut self, other: &USizeSet)
             -> USizeSetResult<bool> {
@@ -487,7 +517,7 @@ impl USizeSet {
     ///
     /// # Errors
     ///
-    /// If the minimum or maximum of this set and `other` are different. In
+    /// If the lower or upper bound of this set and `other` are different. In
     /// that case, `USizeError::DifferentBounds` is returned.
     pub fn difference(&self, other: &USizeSet) -> USizeSetResult<USizeSet> {
         self.op(other, USizeSet::difference_assign)
@@ -507,7 +537,7 @@ impl USizeSet {
     ///
     /// # Errors
     ///
-    /// If the minimum or maximum of this set and `other` are different. In
+    /// If the lower or upper bound of this set and `other` are different. In
     /// that case, `USizeError::DifferentBounds` is returned.
     pub fn symmetric_difference_assign(&mut self, other: &USizeSet)
             -> USizeSetResult<bool> {
@@ -524,7 +554,7 @@ impl USizeSet {
     ///
     /// # Errors
     ///
-    /// If the minimum or maximum of this set and `other` are different. In
+    /// If the lower or upper bound of this set and `other` are different. In
     /// that case, `USizeError::DifferentBounds` is returned.
     pub fn symmetric_difference(&self, other: &USizeSet)
             -> USizeSetResult<USizeSet> {
@@ -540,7 +570,7 @@ impl USizeSet {
             self.content[i] = !self.content[i];
         }
 
-        let rem_bits = (self.max() - self.min() + 1) % U64_BIT_SIZE;
+        let rem_bits = (self.upper() - self.lower() + 1) % U64_BIT_SIZE;
 
         if rem_bits > 0 {
             let mask = u64::MAX >> (U64_BIT_SIZE - rem_bits);
@@ -562,7 +592,7 @@ impl USizeSet {
 }
 
 /// Creates a new [USizeSet] that contains the specified elements. First, the
-/// minimum and maximum values must be specified. Then, after a semicolon, a
+/// lower and upper bound must be specified. Then, after a semicolon, a
 /// comma-separated list of the contained values must be provided. For empty
 /// sets, [USizeSet.new()] can be used.
 ///
@@ -573,8 +603,8 @@ impl USizeSet {
 /// use sudoku_variants::util::USizeSet;
 ///
 /// let set = set!(1, 5; 2, 4);
-/// assert_eq!(1, set.min());
-/// assert_eq!(5, set.max());
+/// assert_eq!(1, set.lower());
+/// assert_eq!(5, set.upper());
 /// assert!(set.contains(2));
 /// assert!(!set.contains(3));
 /// ```
@@ -589,9 +619,9 @@ macro_rules! set {
         set!($set; $($es),+)
     };
 
-    ($min:expr, $max:expr; $($es:expr),+) => {
+    ($lower:expr, $upper:expr; $($es:expr),+) => {
         {
-            let mut set = USizeSet::new($min, $max).unwrap();
+            let mut set = USizeSet::new($lower, $upper).unwrap();
             set!(set; $($es),+);
             set
         }
@@ -803,8 +833,8 @@ mod tests {
     #[test]
     fn set_macro_has_specified_range() {
         let set = set!(2, 5; 3);
-        assert_eq!(2, set.min());
-        assert_eq!(5, set.max());
+        assert_eq!(2, set.lower());
+        assert_eq!(5, set.upper());
     }
 
     #[test]
@@ -1051,5 +1081,27 @@ mod tests {
         let vec = vec![1, 5, 2, 4, 5];
         assert!(contains_duplicate(vec.iter()));
         assert!(contains_duplicate(vec.iter().map(|i| i.to_string())));
+    }
+
+    #[test]
+    fn min_empty() {
+        assert_eq!(None, USizeSet::new(512, 1024).unwrap().min());
+    }
+
+    #[test]
+    fn min_filled() {
+        assert_eq!(Some(2), set!(1, 9; 2, 5).min());
+        assert_eq!(Some(100), set!(1, 200; 100, 105, 195).min());
+    }
+
+    #[test]
+    fn max_empty() {
+        assert_eq!(None, USizeSet::new(512, 1024).unwrap().max());
+    }
+
+    #[test]
+    fn max_filled() {
+        assert_eq!(Some(5), set!(1, 9; 2, 5).max());
+        assert_eq!(Some(100), set!(1, 200; 5, 95, 100).max());
     }
 }

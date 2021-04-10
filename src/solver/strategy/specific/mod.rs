@@ -4,5 +4,11 @@
 //! re-exported in this module.
 
 pub mod killer;
+pub mod thermo;
 
 pub use killer::KillerCagePossibilitiesStrategy;
+pub use thermo::{
+    BackwardThermometerFollowingStrategy,
+    ForwardThermometerFollowingStrategy,
+    ThermometerFollowingStrategy
+};
