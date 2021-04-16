@@ -8,6 +8,7 @@ use crate::util::USizeSet;
 
 use serde::{Deserialize, Serialize};
 
+use std::any::Any;
 use std::iter::Cloned;
 use std::slice::Iter;
 
@@ -42,6 +43,14 @@ pub trait IrreducibleConstraint {
 
     /// See [Constraint::get_groups].
     fn get_groups(&self, grid: &SudokuGrid) -> Vec<Group>;
+
+    /// See [Constraint::to_objects].
+    fn to_objects(&self) -> Vec<&dyn Any>
+    where
+        Self : Sized + 'static
+    {
+        vec![self]
+    }
 }
 
 impl<C: IrreducibleConstraint + ?Sized> Constraint for C {
@@ -356,6 +365,13 @@ impl IrreducibleConstraint for DefaultConstraint {
             &mut <BlockConstraintNoLineColumn as Constraint>::get_groups(
                 &BlockConstraintNoLineColumn, grid));
         groups
+    }
+
+    fn to_objects(&self) -> Vec<&dyn Any>
+    where
+        Self : Sized + 'static
+    {
+        vec![&RowConstraint, &ColumnConstraint, &BlockConstraint]
     }
 }
 
