@@ -6,14 +6,14 @@
 use crate::SudokuGrid;
 use crate::constraint::{Constraint, Group, ReductionError};
 
-fn iter_column<'a>(grid: &'a SudokuGrid, column: usize)
-        -> impl Iterator<Item = Option<usize>> + 'a {
+fn iter_column(grid: &SudokuGrid, column: usize)
+        -> impl Iterator<Item = Option<usize>> + '_ {
     (0..grid.size())
         .map(move |row| grid.get_cell(column, row).unwrap())
 }
 
-fn iter_row<'a>(grid: &'a SudokuGrid, row: usize)
-        -> impl Iterator<Item = Option<usize>> + 'a {
+fn iter_row(grid: &SudokuGrid, row: usize)
+        -> impl Iterator<Item = Option<usize>> + '_ {
     (0..grid.size())
         .map(move |column| grid.get_cell(column, row).unwrap())
 }
@@ -311,8 +311,7 @@ pub enum SandwichReduction {
     Row(usize)
 }
 
-fn push_reductions(vec: &mut Vec<SandwichReduction>,
-        entries: &Vec<Option<usize>>,
+fn push_reductions(vec: &mut Vec<SandwichReduction>, entries: &[Option<usize>],
         constructor: impl Fn(usize) -> SandwichReduction) {
     for (index, entry) in entries.iter().enumerate() {
         if entry.is_some() {
@@ -386,9 +385,9 @@ impl Constraint for SandwichConstraint {
 
     fn reduce(&mut self, _: &SudokuGrid, reduction: &SandwichReduction)
             -> Result<usize, ReductionError> {
-        let entry = match reduction {
-            &SandwichReduction::Column(i) => &mut self.columns[i],
-            &SandwichReduction::Row(i) => &mut self.rows[i]
+        let entry = match *reduction {
+            SandwichReduction::Column(i) => &mut self.columns[i],
+            SandwichReduction::Row(i) => &mut self.rows[i]
         };
 
         if let Some(sum) = entry.take() {
@@ -401,10 +400,10 @@ impl Constraint for SandwichConstraint {
 
     fn revert(&mut self, _: &SudokuGrid, reduction: &SandwichReduction,
             revert_info: usize) {
-        match reduction {
-            &SandwichReduction::Column(i) =>
+        match *reduction {
+            SandwichReduction::Column(i) =>
                 self.columns[i] = Some(revert_info),
-            &SandwichReduction::Row(i) =>
+            SandwichReduction::Row(i) =>
                 self.rows[i] = Some(revert_info),
         }
     }
