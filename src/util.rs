@@ -589,6 +589,108 @@ impl USizeSet {
         result.complement_assign();
         result
     }
+
+    fn rel<F>(&self, other: &USizeSet, u64_rel: F) -> USizeSetResult<bool>
+    where
+        F: Fn(u64, u64) -> bool
+    {
+        if self.lower != other.lower || self.upper != other.upper {
+            Err(USizeSetError::DifferentBounds)
+        }
+        else {
+            let contents = self.content.iter().zip(other.content.iter());
+
+            for (&self_u64, &other_u64) in contents {
+                if !u64_rel(self_u64, other_u64) {
+                    return Ok(false);
+                }
+            }
+
+            Ok(true)
+        }
+    }
+
+    /// Indicates whether this set and the `other` one are disjoint. That is,
+    /// this method returns `true` if and only if there is no element which is
+    /// both in this set and in the `other` one. The bounds of the two sets
+    /// must be equal.
+    ///
+    /// # Errors
+    ///
+    /// If the lower or upper bound of this set and `other` are different. In
+    /// that case, `USizeError::DifferentBounds` is returned.
+    pub fn is_disjoint(&self, other: &USizeSet) -> USizeSetResult<bool> {
+        self.rel(other, |s, o| s & o == 0)
+    }
+
+    /// Indicates whether this set is a subset of the given `other` set. That
+    /// is, this method returns `true` if and only if all elements in this set
+    /// are also contained in the `other` set. The bounds of the two sets must
+    /// be equal.
+    ///
+    /// A set is a subset of another one, if the other one is a superset of the
+    /// first one. This is also implemented by [USizeSet::is_superset].
+    ///
+    /// # Errors
+    ///
+    /// If the lower or upper bound of this set and `other` are different. In
+    /// that case, `USizeError::DifferentBounds` is returned.
+    pub fn is_subset(&self, other: &USizeSet) -> USizeSetResult<bool> {
+        self.rel(other, |s, o| s & o == s)
+    }
+
+    /// Indicates whether this set is a proper subset of the given `other` set.
+    /// This is a stronger condition than an ordinary subset, which is
+    /// implemented by [USizeSet::is_subset], in that this set, in addition to
+    /// being a subset of `other`, must also contain strictly less elements.
+    /// The bounds of the two sets must be equal.
+    ///
+    /// A set is a proper subset of another one, if the other one is a proper
+    /// superset of the first one. This is also implemented by
+    /// [USizeSet::is_proper_superset].
+    ///
+    /// # Errors
+    ///
+    /// If the lower or upper bound of this set and `other` are different. In
+    /// that case, `USizeError::DifferentBounds` is returned.
+    pub fn is_proper_subset(&self, other: &USizeSet) -> USizeSetResult<bool> {
+        Ok(self.is_subset(other)? && self.len < other.len)
+    }
+
+    /// Indicates whether this set is a superset of the given `other` set. That
+    /// is, this method returns `true` if and only if all elements in the
+    /// `other` set are also contained in this one. The bounds of the two sets
+    /// must  be equal.
+    ///
+    /// A set is a superset of another one, if the other one is a subset of the
+    /// first one. This is also implemented by [USizeSet::is_subset].
+    ///
+    /// # Errors
+    ///
+    /// If the lower or upper bound of this set and `other` are different. In
+    /// that case, `USizeError::DifferentBounds` is returned.
+    pub fn is_superset(&self, other: &USizeSet) -> USizeSetResult<bool> {
+        other.is_subset(self)
+    }
+
+    /// Indicates whether this set is a proper superset of the given `other`
+    /// set. This is a stronger condition than an ordinary superset, which is
+    /// implemented by [USizeSet::is_superset], in that this set, in addition
+    /// to being a superset of `other`, must also contain strictly more
+    /// elements. The bounds of the two sets must be equal.
+    ///
+    /// A set is a proper superset of another one, if the other one is a proper
+    /// subset of the first one. This is also implemented by
+    /// [USizeSet::is_proper_subset].
+    ///
+    /// # Errors
+    ///
+    /// If the lower or upper bound of this set and `other` are different. In
+    /// that case, `USizeError::DifferentBounds` is returned.
+    pub fn is_proper_superset(&self, other: &USizeSet)
+            -> USizeSetResult<bool> {
+        other.is_proper_subset(self)
+    }
 }
 
 /// Creates a new [USizeSet] that contains the specified elements. First, the
@@ -1103,5 +1205,119 @@ mod tests {
     fn max_filled() {
         assert_eq!(Some(5), set!(1, 9; 2, 5).max());
         assert_eq!(Some(100), set!(1, 200; 5, 95, 100).max());
+    }
+
+    #[test]
+    fn disjoint_relations() {
+        let primes = set!(1, 10; 2, 3, 5, 7);
+        let squares = set!(1, 10; 1, 4, 9);
+        let even = set!(1, 10; 2, 4, 6, 8, 10);
+
+        assert!(primes.is_disjoint(&squares).unwrap());
+        assert!(!primes.is_disjoint(&even).unwrap());
+    }
+
+    #[test]
+    fn multi_word_disjoint_relations() {
+        let fibs = fibs_to_100();
+        let squares = set!(1, 100; 1, 4, 9, 16, 25, 36, 49, 64, 81, 100);
+        let big_squares = set!(1, 100; 4, 9, 16, 25, 36, 49, 64, 81, 100);
+        let singleton_89 = USizeSet::singleton(1, 100, 89).unwrap();
+
+        assert!(!fibs.is_disjoint(&squares).unwrap());
+        assert!(fibs.is_disjoint(&big_squares).unwrap());
+        assert!(!fibs.is_disjoint(&singleton_89).unwrap());
+    }
+
+    fn assert_subset(a: &USizeSet, b: &USizeSet) {
+        assert!(a.is_subset(b).unwrap());
+        assert!(b.is_superset(a).unwrap());
+    }
+
+    fn assert_not_subset(a: &USizeSet, b: &USizeSet) {
+        assert!(!a.is_subset(b).unwrap());
+        assert!(!b.is_superset(a).unwrap());
+    }
+
+    fn subset_test_sets() -> (USizeSet, USizeSet, USizeSet, USizeSet) {
+        (
+            set!(1, 10; 2, 3, 5, 7),
+            set!(1, 10; 3, 5, 7),
+            set!(1, 10; 1, 4, 9),
+            set!(1, 10; 1, 4, 9)
+        )
+    }
+
+    fn multi_word_subset_test_sets()
+            -> (USizeSet, USizeSet, USizeSet, USizeSet, USizeSet) {
+        (
+            set!(1, 100; 20, 30, 50, 70),
+            set!(1, 100; 30, 50, 70),
+            set!(1, 100; 20, 30, 50),
+            set!(1, 100; 10, 40, 90),
+            set!(1, 100; 10, 40, 90)
+        )
+    }
+
+    #[test]
+    fn subset_relations() {
+        let (a, b, c, d) = subset_test_sets();
+
+        assert_not_subset(&a, &b);
+        assert_subset(&b, &a);
+        assert_not_subset(&a, &c);
+        assert_not_subset(&c, &a);
+        assert_subset(&c, &d);
+        assert_subset(&d, &c);
+    }
+
+    #[test]
+    fn multi_word_subset_relations() {
+        let (a, b, c, d, e) = multi_word_subset_test_sets();
+
+        assert_not_subset(&a, &b);
+        assert_subset(&b, &a);
+        assert_not_subset(&a, &c);
+        assert_subset(&c, &a);
+        assert_not_subset(&a, &d);
+        assert_not_subset(&d, &a);
+        assert_subset(&d, &e);
+        assert_subset(&e, &d);
+    }
+
+    fn assert_proper_subset(a: &USizeSet, b: &USizeSet) {
+        assert!(a.is_proper_subset(b).unwrap());
+        assert!(b.is_proper_superset(a).unwrap());
+    }
+
+    fn assert_not_proper_subset(a: &USizeSet, b: &USizeSet) {
+        assert!(!a.is_proper_subset(b).unwrap());
+        assert!(!b.is_proper_superset(a).unwrap());
+    }
+
+    #[test]
+    fn proper_subset_relations() {
+        let (a, b, c, d) = subset_test_sets();
+
+        assert_not_proper_subset(&a, &b);
+        assert_proper_subset(&b, &a);
+        assert_not_proper_subset(&a, &c);
+        assert_not_proper_subset(&c, &a);
+        assert_not_proper_subset(&c, &d);
+        assert_not_proper_subset(&d, &c);
+    }
+
+    #[test]
+    fn multi_word_proper_subset_relations() {
+        let (a, b, c, d, e) = multi_word_subset_test_sets();
+
+        assert_not_proper_subset(&a, &b);
+        assert_proper_subset(&b, &a);
+        assert_not_proper_subset(&a, &c);
+        assert_proper_subset(&c, &a);
+        assert_not_proper_subset(&a, &d);
+        assert_not_proper_subset(&d, &a);
+        assert_not_proper_subset(&d, &e);
+        assert_not_proper_subset(&e, &d);
     }
 }
