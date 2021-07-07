@@ -302,7 +302,7 @@ pub trait Constraint {
     /// composite constraint.
     fn to_objects(&self) -> Vec<&dyn Any>
     where
-        Self : Sized + 'static
+        Self: Sized + 'static
     {
         vec![self]
     }
@@ -323,6 +323,16 @@ pub trait Subconstraint {
     /// and left-to-right for the
     /// [CompositeConstraint](crate::constraint::composite::CompositeConstraint).
     fn get_subconstraint<S: Constraint + Sized + 'static>(&self) -> Option<&S>;
+
+    /// Indicates whether this constraint has a sub-constraint of type `S`.
+    /// This is true, if and only if [Subconstraint::get_subconstraint] returns
+    /// a `Some(_)` variant.
+    fn has_subconstraint<S>(&self) -> bool
+    where
+        S: Constraint + Sized + 'static
+    {
+        self.get_subconstraint::<S>().is_some()
+    }
 }
 
 impl<C: Constraint + Sized + 'static> Subconstraint for C {
