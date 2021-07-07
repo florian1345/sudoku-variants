@@ -90,6 +90,14 @@ impl<C: IrreducibleConstraint + ?Sized> Constraint for C {
     }
 
     fn revert(&mut self, _: &SudokuGrid, _: &(), _: ()) { }
+
+    #[inline]
+    fn to_objects(&self) -> Vec<&dyn Any>
+    where
+        Self: Sized + 'static
+    {
+        <C as IrreducibleConstraint>::to_objects(self)
+    }
 }
 
 /// A [Constraint] that there are no duplicates in each row.
@@ -526,11 +534,9 @@ impl<C: RelativeCellConstraint> IrreducibleConstraint for C {
         let iter =
             RelativeCellIter::new(&C::RELATIVE_COORDINATES, grid, column, row);
         
-        for other_cell in iter {
-            if let Some(other_number) = other_cell {
-                if self.is_forbidden(number, other_number) {
-                    return false;
-                }
+        for other_cell in iter.flatten() {
+            if self.is_forbidden(number, other_cell) {
+                return false;
             }
         }
         
@@ -671,7 +677,7 @@ mod tests {
 
     use super::*;
 
-    use crate::Sudoku;
+    use crate::{Sudoku, constraint::Subconstraint};
 
     #[test]
     fn row_satisfied() {
@@ -932,5 +938,13 @@ mod tests {
         assert!(sudoku.is_valid_cell(1, 2).unwrap());
         assert!(!sudoku.is_valid_number(2, 1, 2).unwrap());
         assert!(sudoku.is_valid_number(1, 0, 1).unwrap());
+    }
+
+    #[test]
+    fn default_subconstraints() {
+        assert!(DefaultConstraint.has_subconstraint::<RowConstraint>());
+        assert!(DefaultConstraint.has_subconstraint::<ColumnConstraint>());
+        assert!(DefaultConstraint.has_subconstraint::<BlockConstraint>());
+        assert!(!DefaultConstraint.has_subconstraint::<DiagonalsConstraint>());
     }
 }

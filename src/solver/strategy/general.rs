@@ -260,13 +260,10 @@ fn find_tuples_rec(sudoku_info: &SudokuInfo<impl Constraint + Clone>,
             find_tuples_rec(sudoku_info, next_rest, max_size,
                 curr_tuple.clone(), accumulator);
             curr_tuple.add_cell(next_options, next_column, next_row);
-            find_tuples_rec(sudoku_info, next_rest, max_size, curr_tuple,
-                accumulator);
         }
-        else {
-            find_tuples_rec(sudoku_info, next_rest, max_size, curr_tuple,
-                accumulator);
-        }
+
+        find_tuples_rec(sudoku_info, next_rest, max_size, curr_tuple,
+            accumulator)
     }
 }
 
