@@ -18,23 +18,65 @@ fn iter_row(grid: &SudokuGrid, row: usize)
         .map(move |column| grid.get_cell(column, row).unwrap())
 }
 
-/// Returns `Some(sum, missing)` where `sum` is the sum of sandwiched digits
-/// (empty ones count as 0) and `missing` is the number of empty cells in the
-/// sandwich, if there are at least two delimiters in the iterator. Otherwise,
-/// this will return `None`.
+/// Describes the states a sandwich line (column or row) can be in.
+enum SandwichState {
+
+    /// Indicates that there is no full sandwich yet, but there is still
+    /// sufficient space for one. This means the constraint is satisfied for
+    /// this line.
+    Incomplete,
+
+    /// Indicates that there is at most one bun and not enough space for two
+    /// buns in the line. This means the constraint is violated.
+    MissingBun,
+
+    /// Indicates that there is a complete sandwich in the line. Depending on
+    /// the sum, number of missing digits, and required sum, this may or may
+    /// not cause the constraint to be violated.
+    Complete {
+
+        /// The sum of all digits that are present in the sandwich.
+        sum: usize,
+
+        /// The number of missing digits in the sandwich.
+        missing: usize
+    },
+
+    /// Indicates that there are too many buns in the line. This means the
+    /// constraint is violated.
+    ExtraBun
+}
+
+impl SandwichState {
+    fn unwrap(self) -> (usize, usize) {
+        match self {
+            SandwichState::Complete { sum, missing } => (sum, missing),
+            _ => panic!("Expected complete sandwich state, but was not.")
+        }
+    }
+}
+
 fn sandwich_with(cells: impl Iterator<Item = Option<usize>>,
         replace: impl Fn(usize) -> Option<usize>, size: usize)
-        -> Option<(usize, usize)> {
+        -> SandwichState {
     let mut collecting = false;
     let mut sum = 0;
     let mut missing = 0;
+    let mut total_missing = 0;
+    let mut result = SandwichState::Incomplete;
 
     for (index, cell) in cells.enumerate() {
         let cell = replace(index).or(cell);
 
         if cell == Some(1) || cell == Some(size) {
-            if collecting {
-                return Some((sum, missing));
+            if matches!(result, SandwichState::Complete { .. }) {
+                return SandwichState::ExtraBun;
+            }
+            else if collecting {
+                result = SandwichState::Complete {
+                    sum,
+                    missing
+                };
             }
             else {
                 collecting = true;
@@ -46,34 +88,45 @@ fn sandwich_with(cells: impl Iterator<Item = Option<usize>>,
             }
             else {
                 missing += 1;
+                total_missing += 1;
             }
+        }
+        else if cell.is_none() {
+            total_missing += 1;
         }
     }
 
-    None
+    if matches!(result, SandwichState::Incomplete) {
+        let max_buns = total_missing + (collecting as usize);
+
+        if max_buns < 2 {
+            return SandwichState::MissingBun;
+        }
+    }
+
+    result
 }
 
 fn column_sandwich_with(grid: &SudokuGrid, column: usize,
-        replace: impl Fn(usize) -> Option<usize>) -> Option<(usize, usize)> {
+        replace: impl Fn(usize) -> Option<usize>) -> SandwichState {
     sandwich_with(iter_column(grid, column), replace, grid.size())
 }
 
 fn row_sandwich_with(grid: &SudokuGrid, row: usize,
-        replace: impl Fn(usize) -> Option<usize>) -> Option<(usize, usize)> {
+        replace: impl Fn(usize) -> Option<usize>) -> SandwichState {
     sandwich_with(iter_row(grid, row), replace, grid.size())
 }
 
 fn sandwich(cells: impl Iterator<Item = Option<usize>>, size: usize)
-        -> Option<(usize, usize)> {
+        -> SandwichState {
     sandwich_with(cells, |_| None, size)
 }
 
-fn column_sandwich(grid: &SudokuGrid, column: usize)
-        -> Option<(usize, usize)> {
+fn column_sandwich(grid: &SudokuGrid, column: usize) -> SandwichState {
     sandwich(iter_column(grid, column), grid.size())
 }
 
-fn row_sandwich(grid: &SudokuGrid, row: usize) -> Option<(usize, usize)> {
+fn row_sandwich(grid: &SudokuGrid, row: usize) -> SandwichState {
     sandwich(iter_row(grid, row), grid.size())
 }
 
@@ -95,11 +148,11 @@ pub enum SandwichError {
 pub type SandwichResult<T> = Result<T, SandwichError>;
 
 /// A [Constraint] that annotates numbers on some (or all) columns and rows of
-/// the grid. These numbers define the sum of digits located between the first
-/// two cells that are filled with 1 or the highest digit that can fit on the
-/// grid (9 in ordinary Sudoku). In ordinary Sudoku, i.e. if the
-/// [DefaultConstraint](crate::constraint::DefaultConstraint) is used, this is
-/// the same as the sum between 1 and the highest number.
+/// the grid. These numbers define the sum of digits located between the two
+/// cells that are filled with 1 or the highest digit that can fit on the grid
+/// grid (9 in ordinary Sudoku). If there are more or less than two cells
+/// filled with these "bun" digits, this constraint will be counted as
+/// violated.
 ///
 /// As an example, in the following example the second column could be
 /// annotated with `16` and the third row could have a `7`. If the constraint
@@ -132,15 +185,18 @@ pub struct SandwichConstraint {
     rows: Vec<Option<usize>>
 }
 
-fn check_sum(sandwich_computer: impl Fn() -> Option<(usize, usize)>, annotation: Option<usize>, size: usize) -> bool {
+fn check_sum(sandwich_computer: impl Fn() -> SandwichState,
+        annotation: Option<usize>, size: usize) -> bool {
     if let Some(required_sum) = annotation {
-        if let Some((sum, missing)) = sandwich_computer() {
-            let min_sum = sum + missing * 2;
-            let max_sum = sum + missing * (size - 1);
-            min_sum <= required_sum && max_sum >= required_sum
-        }
-        else {
-            true
+        match sandwich_computer() {
+            SandwichState::Incomplete => true,
+            SandwichState::MissingBun => false,
+            SandwichState::Complete { sum, missing } => {
+                let min_sum = sum + missing * 2;
+                let max_sum = sum + missing * (size - 1);
+                min_sum <= required_sum && max_sum >= required_sum
+            },
+            SandwichState::ExtraBun => false
         }
     }
     else {
@@ -621,5 +677,49 @@ mod tests {
         assert!(!constraint.check_cell(&grid, 1, 0));
         assert!(constraint.check_number(&grid, 1, 2, 3));
         assert!(!constraint.check_number(&grid, 1, 1, 3));
+    }
+
+    #[test]
+    fn sandwich_constraint_violated_missing_bun() {
+        let constraint = example_constraint();
+        let grid = SudokuGrid::parse("2x2;
+             , , , ,\
+             ,2, , ,\
+             ,3, , ,\
+             ,3, , ").unwrap();
+
+        assert!(!constraint.check(&grid));
+        assert!(constraint.check_cell(&grid, 0, 1));
+        assert!(!constraint.check_cell(&grid, 1, 0));
+        assert!(!constraint.check_number(&grid, 1, 0, 1));
+    }
+
+    #[test]
+    fn sandwich_constraint_violated_extra_bun() {
+        let constraint = example_constraint();
+        let grid = SudokuGrid::parse("2x2;
+            1, ,4,1,\
+             , , , ,\
+             , , , ,\
+             , , , ").unwrap();
+
+        assert!(!constraint.check(&grid));
+        assert!(constraint.check_cell(&grid, 1, 1));
+        assert!(!constraint.check_cell(&grid, 0, 0));
+        assert!(!constraint.check_number(&grid, 1, 0, 3));
+    }
+
+    #[test]
+    fn sandwich_constraint_does_not_require_two_buns_in_row_without_sum() {
+        let constraint = example_constraint();
+        let grid = SudokuGrid::parse("2x2;
+             , , , ,\
+             , , , ,\
+             , , , ,\
+            1, ,4,1").unwrap();
+
+        assert!(constraint.check(&grid));
+        assert!(constraint.check_cell(&grid, 2, 3));
+        assert!(constraint.check_number(&grid, 1, 3, 1));
     }
 }
