@@ -207,7 +207,6 @@ mod tests {
     use crate::solver::strategy::{
         BoundedOptionsBacktrackingStrategy,
         BoundedCellsBacktrackingStrategy,
-        CompositeStrategy,
         NakedSingleStrategy,
         OnlyCellStrategy,
         TupleStrategy
@@ -222,36 +221,28 @@ mod tests {
     }
 
     fn complex_strategy_solver() -> StrategicSolver<impl Strategy> {
-        let strategy = CompositeStrategy::new(NakedSingleStrategy,
-            CompositeStrategy::new(OnlyCellStrategy,
-                CompositeStrategy::new(TupleStrategy::new(|_| 7),
-                    CompositeStrategy::new(
-                        BoundedOptionsBacktrackingStrategy::new(|_| 2,
-                            |_| Some(1), OnlyCellStrategy),
-                        BoundedCellsBacktrackingStrategy::new(|_| 2,
-                            |_| Some(1), OnlyCellStrategy)))));
-        StrategicSolver::new(strategy)
+        StrategicSolver::new((
+            NakedSingleStrategy,
+            OnlyCellStrategy,
+            TupleStrategy::new(|_| 7),
+            BoundedOptionsBacktrackingStrategy::new(|_| 2, |_| Some(1), OnlyCellStrategy),
+            BoundedCellsBacktrackingStrategy::new(|_| 2, |_| Some(1), OnlyCellStrategy),
+        ))
     }
 
-    fn complex_strategic_backtracking_solver()
-            -> StrategicBacktrackingSolver<impl Strategy> {
+    fn complex_strategic_backtracking_solver() -> StrategicBacktrackingSolver<impl Strategy> {
         // This solver is used in the benchmark, where an error was found.
 
-        StrategicBacktrackingSolver::new(CompositeStrategy::new(
-            CompositeStrategy::new(
-                NakedSingleStrategy, OnlyCellStrategy),
-            CompositeStrategy::new(
-                TupleStrategy::new(|size| size - 2),
-                CompositeStrategy::new(
-                    BoundedCellsBacktrackingStrategy::new(|size| size - 2,
-                        |_| Some(1), OnlyCellStrategy),
-                    BoundedOptionsBacktrackingStrategy::new(|_| 2,
-                        |_| Some(1), CompositeStrategy::new(
-                            NakedSingleStrategy, OnlyCellStrategy
-                        )
-                    )
-                )
-            )
+        StrategicBacktrackingSolver::new((
+            NakedSingleStrategy,
+            OnlyCellStrategy,
+            TupleStrategy::new(|size| size - 2),
+            BoundedCellsBacktrackingStrategy::new(|size| size - 2, |_| Some(1), OnlyCellStrategy),
+            BoundedOptionsBacktrackingStrategy::new(
+                |_| 2,
+                |_| Some(1),
+                (NakedSingleStrategy, OnlyCellStrategy),
+            ),
         ))
     }
 
