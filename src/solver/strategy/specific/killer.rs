@@ -44,6 +44,7 @@ use crate::util::USizeSet;
 /// This strategy would be able to deduce that the cell marked with `X` cannot
 /// be a 1. This is because that would require a 4 in either of the cells
 /// marked with Y, which is not possible due to the 4s in the lower two rows.
+#[derive(Clone)]
 pub struct KillerCagePossibilitiesStrategy;
 
 fn process_cage<C>(cage: &KillerCage, sudoku_info: &mut SudokuInfo<C>) -> bool

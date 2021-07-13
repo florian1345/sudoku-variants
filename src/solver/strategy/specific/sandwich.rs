@@ -47,6 +47,7 @@ use std::slice::Iter;
 /// cannot go up for the same reason discussed earlier. So, the strategy will
 /// rule out the cells marked with X for buns. This leaves two remaining cells,
 /// which will be marked as buns by this strategy.
+#[derive(Clone)]
 pub struct SandwichBunPlacementStrategy;
 
 fn bun(size: usize) -> USizeSet {
@@ -454,6 +455,7 @@ where
 /// must not be inside the sandwich, and tht it can also not be 3 and 6, since
 /// the cell marked with Y can be neither. Therefore, this strategy would leave
 /// only the options 4 and 5 in the cells inside the sandwich.
+#[derive(Clone)]
 pub struct SandwichPossibilitiesStrategy;
 
 impl Strategy for SandwichPossibilitiesStrategy {

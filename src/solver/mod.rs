@@ -79,6 +79,7 @@ pub trait Solver {
 /// * Its worst-case runtime is exponential, i.e. it may be very slow if the
 /// Sudoku has many missing digits.
 /// * It can provide the correct [Solution] for any Sudoku with any constraint.
+#[derive(Clone)]
 pub struct BacktrackingSolver;
 
 impl BacktrackingSolver {
