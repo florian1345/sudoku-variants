@@ -110,8 +110,7 @@ fn find_buns<C: Constraint + Clone>(sudoku_info: &SudokuInfo<C>,
     let mut buns = USizeSet::new(0, size - 1).unwrap();
     let mut non_buns = USizeSet::new(0, size - 1).unwrap();
 
-    for i in 0..size {
-        let (column, row) = line[i];
+    for (i, &(column, row)) in line.iter().enumerate() {
         let options = sudoku_info.get_options(column, row).unwrap();
 
         if is_bun(options, size) {
