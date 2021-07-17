@@ -207,6 +207,7 @@ mod tests {
     use crate::solver::strategy::{
         BoundedOptionsBacktrackingStrategy,
         BoundedCellsBacktrackingStrategy,
+        CompositeStrategy,
         NakedSingleStrategy,
         OnlyCellStrategy,
         TupleStrategy
@@ -219,8 +220,20 @@ mod tests {
     fn only_cell_strategy_solver() -> StrategicSolver<impl Strategy> {
         StrategicSolver::new(OnlyCellStrategy)
     }
+    
+    fn complex_composite_strategy_solver() -> StrategicSolver<impl Strategy> {
+        let strategy = CompositeStrategy::new(NakedSingleStrategy,
+            CompositeStrategy::new(OnlyCellStrategy,
+                CompositeStrategy::new(TupleStrategy::new(|_| 7),
+                    CompositeStrategy::new(
+                        BoundedOptionsBacktrackingStrategy::new(|_| 2,
+                            |_| Some(1), OnlyCellStrategy),
+                        BoundedCellsBacktrackingStrategy::new(|_| 2,
+                            |_| Some(1), OnlyCellStrategy)))));
+        StrategicSolver::new(strategy)
+    }
 
-    fn complex_strategy_solver() -> StrategicSolver<impl Strategy> {
+    fn complex_tuple_strategy_solver() -> StrategicSolver<impl Strategy> {
         StrategicSolver::new((
             NakedSingleStrategy,
             OnlyCellStrategy,
@@ -230,19 +243,25 @@ mod tests {
         ))
     }
 
-    fn complex_strategic_backtracking_solver() -> StrategicBacktrackingSolver<impl Strategy> {
+    fn complex_strategic_backtracking_solver()
+            -> StrategicBacktrackingSolver<impl Strategy> {
         // This solver is used in the benchmark, where an error was found.
 
-        StrategicBacktrackingSolver::new((
-            NakedSingleStrategy,
-            OnlyCellStrategy,
-            TupleStrategy::new(|size| size - 2),
-            BoundedCellsBacktrackingStrategy::new(|size| size - 2, |_| Some(1), OnlyCellStrategy),
-            BoundedOptionsBacktrackingStrategy::new(
-                |_| 2,
-                |_| Some(1),
-                (NakedSingleStrategy, OnlyCellStrategy),
-            ),
+        StrategicBacktrackingSolver::new(CompositeStrategy::new(
+            CompositeStrategy::new(
+                NakedSingleStrategy, OnlyCellStrategy),
+            CompositeStrategy::new(
+                TupleStrategy::new(|size| size - 2),
+                CompositeStrategy::new(
+                    BoundedCellsBacktrackingStrategy::new(|size| size - 2,
+                        |_| Some(1), OnlyCellStrategy),
+                    BoundedOptionsBacktrackingStrategy::new(|_| 2,
+                        |_| Some(1), CompositeStrategy::new(
+                            NakedSingleStrategy, OnlyCellStrategy
+                        )
+                    )
+                )
+            )
         ))
     }
 
@@ -368,8 +387,14 @@ mod tests {
     }
 
     #[test]
-    fn complex_strategy_solves_difficult_sudoku() {
-        let solver = complex_strategy_solver();
+    fn complex_composite_strategy_solves_difficult_sudoku() {
+        let solver = complex_composite_strategy_solver();
+        assert_can_solve_difficult_sudoku(solver);
+    }
+    
+    #[test]
+    fn complex_tuple_strategy_solves_difficult_sudoku() {
+        let solver = complex_tuple_strategy_solver();
         assert_can_solve_difficult_sudoku(solver);
     }
 
