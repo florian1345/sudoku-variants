@@ -10,6 +10,7 @@ use crate::constraint::{
     Subconstraint
 };
 use crate::solver::strategy::{Strategy, SudokuInfo};
+use crate::solver::strategy::specific::sum;
 use crate::util::USizeSet;
 
 /// A [Strategy] specifically for the [KillerConstraint], which, for each cage,
@@ -43,79 +44,8 @@ use crate::util::USizeSet;
 /// This strategy would be able to deduce that the cell marked with `X` cannot
 /// be a 1. This is because that would require a 4 in either of the cells
 /// marked with Y, which is not possible due to the 4s in the lower two rows.
+#[derive(Clone)]
 pub struct KillerCagePossibilitiesStrategy;
-
-/// Recursively enters all options to build the required sum from the remaining
-/// cells into `new_options`.
-///
-/// # Arguments
-///
-/// * `missing`: A [USizeSet] for each missing cell containing its options.
-/// * `current_sum`: The sum accumulated so far from the previous cells, i.e.
-/// all cells that were already filled and all that have been inserted.
-/// * `required_sum`: The sum annotated at the cage.
-/// * `new_options`: A vector which contains one [USizeSet] for each remaining
-/// cell (same indices as `missing`). In this set all found options for that
-/// specific cell should be entered.
-/// * `numbers`: A [USizeSet] that contains all numbers that were already
-/// inserted into previous cells in the cage. Filled cells are not considered
-/// here, since those should not occur in the options in the first place.
-/// * `index`: The index of the cell to process at this recursion depth.
-fn find_options_rec(missing: &[&USizeSet], current_sum: usize,
-        required_sum: usize, new_options: &mut Vec<USizeSet>,
-        numbers: &mut USizeSet, index: usize) -> bool {
-    if index == missing.len() - 1 {
-        let required = required_sum - current_sum;
-
-        if missing[index].contains(required) && !numbers.contains(required) {
-            new_options[index].insert(required).unwrap();
-            return true;
-        }
-
-        return false;
-    }
-
-    let mut result = false;
-
-    for option in missing[index].iter() {
-        let next_sum = current_sum + option;
-
-        if next_sum >= required_sum {
-            // Options are in ascending order, so following options will only
-            // be worse.
-            break;
-        }
-
-        if numbers.contains(option) {
-            continue;
-        }
-
-        numbers.insert(option).unwrap();
-
-        if find_options_rec(missing, next_sum, required_sum, new_options,
-                numbers, index + 1) {
-            new_options[index].insert(option).unwrap();
-            result = true;
-        }
-
-        numbers.remove(option).unwrap();
-    }
-
-    result
-}
-
-fn find_options(missing: &[&USizeSet], current_sum: usize, required_sum: usize,
-        size: usize) -> Vec<USizeSet> {
-    let mut new_options = vec![USizeSet::new(1, size).unwrap(); missing.len()];
-
-    if current_sum < required_sum {
-        let mut numbers = USizeSet::new(1, size).unwrap();
-        find_options_rec(missing, current_sum, required_sum, &mut new_options,
-            &mut numbers, 0);
-    }
-
-    new_options
-}
 
 fn process_cage<C>(cage: &KillerCage, sudoku_info: &mut SudokuInfo<C>) -> bool
 where
@@ -144,10 +74,11 @@ where
     }
 
     let new_options =
-        find_options(&missing_options, sum, cage.sum(), sudoku_info.size());
+        sum::find_options_unique(missing_options.into_iter(), sum, cage.sum());
     let mut changed = false;
 
-    for (new_options, &(column, row)) in new_options.iter().zip(missing_cells.iter()) {
+    for (new_options, &(column, row))
+    in new_options.iter().zip(missing_cells.iter()) {
         let options =
             sudoku_info.get_options_mut(column, row).unwrap();
         changed |= options.intersect_assign(new_options).unwrap();

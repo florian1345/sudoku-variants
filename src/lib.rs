@@ -228,6 +228,9 @@ pub mod util;
 #[cfg(test)]
 mod fix_tests;
 
+#[cfg(test)]
+mod random_tests;
+
 use constraint::Constraint;
 use error::{SudokuError, SudokuParseError, SudokuParseResult, SudokuResult};
 

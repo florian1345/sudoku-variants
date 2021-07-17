@@ -14,6 +14,7 @@ use crate::solver::strategy::{Strategy, SudokuInfo};
 /// A [Strategy] which follows thermometers from bulb to end, tracking the
 /// minimum numbers along the way (adding 1 for empty cells as a conservative
 /// estimate) and eliminates all lower options.
+#[derive(Clone)]
 pub struct ForwardThermometerFollowingStrategy;
 
 fn apply_for_thermometers<C>(sudoku_info: &mut SudokuInfo<C>,
@@ -78,6 +79,7 @@ impl Strategy for ForwardThermometerFollowingStrategy {
 /// A [Strategy] which follows thermometers from end to bulb, tracking the
 /// maximum numbers along the way (subtracting 1 for empty cells as a
 /// conservative estimate) and eliminates all higher options.
+#[derive(Clone)]
 pub struct BackwardThermometerFollowingStrategy;
 
 // TODO avoid code duplication with forward
@@ -120,7 +122,8 @@ impl Strategy for BackwardThermometerFollowingStrategy {
 }
 
 /// A [Strategy] which deploys the [ForwardThermometerFollowingStrategy] and
-// the [BackwardThermometerFollowingStrategy] for convenience.
+/// the [BackwardThermometerFollowingStrategy] for convenience.
+#[derive(Clone)]
 pub struct ThermometerFollowingStrategy;
 
 impl Strategy for ThermometerFollowingStrategy {
