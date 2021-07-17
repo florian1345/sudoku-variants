@@ -67,6 +67,14 @@ pub struct StrategicBacktrackingSolver<S: Strategy> {
     strategy: S
 }
 
+impl<S: Strategy + Clone> Clone for StrategicBacktrackingSolver<S> {
+    fn clone(&self) -> StrategicBacktrackingSolver<S> {
+        StrategicBacktrackingSolver {
+            strategy: self.strategy.clone()
+        }
+    }
+}
+
 /// Finds the cell for which there are the fewest options and returns its
 /// coordinates in the form `(column, row)`.
 fn find_min_options<C: Constraint + Clone>(sudoku_info: &SudokuInfo<C>)
