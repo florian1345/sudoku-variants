@@ -1,0 +1,28 @@
+name: Rust
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+  RUSTDOCFLAGS: -D warnings
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Clippy
+      run: |
+        rustup component add clippy
+        cargo clippy --verbose
+    - name: Build
+      run: cargo build --verbose
+    - name: Tests
+      run: cargo test --verbose
+    - name: Documentation
+      run: cargo doc --verbose
