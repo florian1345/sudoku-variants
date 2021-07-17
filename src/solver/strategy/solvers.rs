@@ -228,7 +228,7 @@ mod tests {
     fn only_cell_strategy_solver() -> StrategicSolver<impl Strategy> {
         StrategicSolver::new(OnlyCellStrategy)
     }
-    
+
     fn complex_composite_strategy_solver() -> StrategicSolver<impl Strategy> {
         let strategy = CompositeStrategy::new(NakedSingleStrategy,
             CompositeStrategy::new(OnlyCellStrategy,
