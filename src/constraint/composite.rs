@@ -189,7 +189,7 @@ where
 /// to implement this trait manually, as it is automatically implemented for
 /// all `Constraint`s that implement [Clone] (and have static lifetime).
 trait CloneConstraint :
-        Constraint<Reduction = Box<dyn Any>, RevertInfo = Box<dyn Any>> {
+        Constraint<Reduction = Box<dyn Any>, RevertInfo = Box<dyn Any>> + Send {
 
     /// Clones a trait object of this constraint.
     fn clone_box(&self) -> Box<dyn CloneConstraint>;
@@ -268,7 +268,7 @@ impl<C: Constraint + Clone + 'static> Constraint for WrappedConstraint<C> {
 
 impl<C> CloneConstraint for WrappedConstraint<C>
 where
-    C: Constraint + Clone + 'static
+    C: Constraint + Clone + Send + 'static
 {
     fn clone_box(&self) -> Box<dyn CloneConstraint> {
         Box::new(self.clone())
@@ -299,7 +299,7 @@ impl DynamicConstraint {
 
     /// Adds a [Constraint] to this dynamic constraint as a child. It is
     /// wrapped in a trait object.
-    pub fn add(&mut self, constraint: impl Constraint + Clone + 'static) {
+    pub fn add(&mut self, constraint: impl Constraint + Clone + Send + 'static) {
         self.constraints.push(Box::new(WrappedConstraint::from(constraint)))
     }
 }
