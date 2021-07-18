@@ -674,6 +674,36 @@ impl<S1: Strategy + Clone, S2: Strategy + Clone> Clone for CompositeStrategy<S1,
     }
 }
 
+macro_rules! tuple_impls {
+    ( $( $name:tt )+ ) => {
+        impl<$($name,)+> Strategy for ($($name,)+) where $($name: Strategy,)+
+        {
+            fn apply<Con>(&self, sudoku_info: &mut SudokuInfo<Con>) -> bool
+            where
+                Con: Constraint + Clone + 'static
+            {
+                // This is shadowing the types using an identifier of the same name.
+                #[allow(non_snake_case)]
+                let ($($name,)+) = self;
+                false $(| $name.apply(sudoku_info))+
+            }
+        }
+    };
+}
+
+tuple_impls! { A }
+tuple_impls! { A B }
+tuple_impls! { A B C }
+tuple_impls! { A B C D }
+tuple_impls! { A B C D E }
+tuple_impls! { A B C D E F }
+tuple_impls! { A B C D E F G }
+tuple_impls! { A B C D E F G H }
+tuple_impls! { A B C D E F G H I }
+tuple_impls! { A B C D E F G H I J }
+tuple_impls! { A B C D E F G H I J K }
+tuple_impls! { A B C D E F G H I J K L }
+
 #[cfg(test)]
 mod tests {
 
