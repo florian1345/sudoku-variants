@@ -87,6 +87,12 @@ where
     pub fn second_mut(&mut self) -> &mut C2 {
         &mut self.c2
     }
+
+    /// Takes ownership of this constraint and returns ownership of both
+    /// individual constraints.
+    pub fn into_components(self) -> (C1, C2) {
+        (self.c1, self.c2)
+    }
 }
 
 /// Data of one of two types `D1` and `D2`.
