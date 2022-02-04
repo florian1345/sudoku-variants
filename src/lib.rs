@@ -1048,6 +1048,12 @@ impl<C: Constraint + Clone> Sudoku<C> {
             self.constraint.check(solution) &&
             solution.is_full())
     }
+
+    /// Takes ownership of this Sudoku and returns ownership of its raw parts,
+    /// i.e. its [SudokuGrid] and [Constraint].
+    pub fn into_raw_parts(self) -> (SudokuGrid, C) {
+        (self.grid, self.constraint)
+    }
 }
 
 #[cfg(test)]
