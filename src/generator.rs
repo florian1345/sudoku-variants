@@ -165,7 +165,7 @@ impl<R, C: Constraint<Reduction = R> + Clone + 'static> Reduction<R, C> {
             },
             Reduction::ReduceConstraint { reduction: r, constraint: _ } => {
                 let constraint = sudoku.constraint_mut();
-                let reduce_res = constraint.reduce(&solution, r);
+                let reduce_res = constraint.reduce(solution, r);
                 
                 if let Ok(revert_info) = reduce_res {
                     if let Solution::Unique(_) = solver.solve(sudoku) { }

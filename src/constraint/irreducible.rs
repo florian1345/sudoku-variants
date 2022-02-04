@@ -452,7 +452,7 @@ where
     type Item = Option<usize>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((delta_column, delta_row)) = self.coords.next() {
+        for (delta_column, delta_row) in self.coords.by_ref() {
             let column = self.center_column as isize + delta_column;
             let row = self.center_row as isize + delta_row;
             let size = self.grid.size() as isize;
@@ -532,7 +532,7 @@ impl<C: RelativeCellConstraint> IrreducibleConstraint for C {
     fn check_number(&self, grid: &SudokuGrid, column: usize, row: usize,
             number: usize) -> bool {
         let iter =
-            RelativeCellIter::new(&C::RELATIVE_COORDINATES, grid, column, row);
+            RelativeCellIter::new(C::RELATIVE_COORDINATES, grid, column, row);
         
         for other_cell in iter.flatten() {
             if self.is_forbidden(number, other_cell) {
