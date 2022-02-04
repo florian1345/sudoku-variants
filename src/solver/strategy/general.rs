@@ -270,7 +270,7 @@ fn find_tuples_rec(sudoku_info: &SudokuInfo<impl Constraint + Clone>,
 fn find_tuples(sudoku_info: &SudokuInfo<impl Constraint + Clone>,
         group: &[(usize, usize)], max_size: usize) -> Vec<Tuple> {
     let mut result = Vec::new();
-    find_tuples_rec(&sudoku_info, group, max_size,
+    find_tuples_rec(sudoku_info, group, max_size,
         Tuple::new(sudoku_info.size()), &mut result);
     result
 }
@@ -287,7 +287,7 @@ impl<F: Fn(usize) -> usize> Strategy for TupleStrategy<F> {
         let max_size = (self.max_size_computer)(sudoku_info.size());
 
         for group in groups {
-            let tuples = find_tuples(&sudoku_info, &group, max_size);
+            let tuples = find_tuples(sudoku_info, &group, max_size);
             
             for tuple in tuples {
                 for (column, row) in group.iter().cloned() {

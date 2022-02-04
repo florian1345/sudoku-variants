@@ -9,10 +9,10 @@
 
 // Doc lints
 
-#![warn(broken_intra_doc_links)]
+#![warn(rustdoc::broken_intra_doc_links)]
 #![warn(missing_docs)]
-#![warn(missing_crate_level_docs)]
-#![warn(invalid_codeblock_attributes)]
+#![warn(rustdoc::missing_crate_level_docs)]
+#![warn(rustdoc::invalid_codeblock_attributes)]
 
 //! This crate implements an easy-to-understand and flexible Sudoku engine. It
 //! supports the following key features:
