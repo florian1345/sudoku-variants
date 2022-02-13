@@ -6,6 +6,8 @@
 use crate::SudokuGrid;
 use crate::constraint::{Constraint, Group, ReductionError};
 
+use serde::{Deserialize, Serialize};
+
 fn iter_column(grid: &SudokuGrid, column: usize)
         -> impl Iterator<Item = Option<usize>> + '_ {
     (0..grid.size())
@@ -179,7 +181,7 @@ pub type SandwichResult<T> = Result<T, SandwichError>;
 /// ║   │ 8 │   ║   │   │   ║   │   │   ║
 /// ╚═══╧═══╧═══╩═══╧═══╧═══╩═══╧═══╧═══╝
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct SandwichConstraint {
     columns: Vec<Option<usize>>,
     rows: Vec<Option<usize>>
