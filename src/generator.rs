@@ -11,7 +11,7 @@ use crate::solver::{BacktrackingSolver, Solution, Solver};
 use rand::Rng;
 use rand::rngs::ThreadRng;
 
-use std::marker::PhantomData;
+use rand_distr::Normal;
 
 /// A generator randomly generates a full [Sudoku], that is, a Sudoku with no
 /// missing digits. It uses a random number generator to decide the content.
@@ -117,6 +117,51 @@ impl<R: Rng> Generator<R> {
     }
 }
 
+/// A trait for types which can prioritize the order in which Sudoku reductions
+/// of type `R` shall be applied to a Sudoku to reduce. Note that there is some
+/// random element to the ordering (see [ReductionPrioritizer::rough_priority]
+/// for details on the mathematics). It is blanket-implemented for all types
+/// implementing `Fn(&R) -> f64`.
+pub trait ReductionPrioritizer<R> {
+
+    /// Determines the approximate priority of the given reduction. Lower
+    /// numbers indicate reductions that are applied first. When determining
+    /// the order of two reductions, each of these scores is added to a
+    /// normally distributed random number with a standard deviation of
+    /// `1 / sqrt(2)`. The reduction with the lower sum will be applied first.
+    ///
+    /// In other words, if the difference between the scores of two reductions
+    /// `a` and `b` is `score(a) - score(b) = x`, then the probability that `a`
+    /// is applied _after_ `b` is equivalent to the probability a normally
+    /// distributed random number is _below_ the `x`-sigma interval.
+    ///
+    /// For simple priorization where all reductions of some type are applied
+    /// first, separate them by differences of at least 10 to ensure a
+    /// negligible probability of overlap.
+    ///
+    /// This method must _always_ return finite numbers or inifinities.
+    ///
+    /// # Arguments
+    ///
+    /// * `reduction`: A reference to the reduction of which to get the rough
+    /// priority score.
+    fn rough_priority(&mut self, reduction: &R) -> f64;
+}
+
+struct EqualPrioritizer;
+
+impl<R> ReductionPrioritizer<R> for EqualPrioritizer {
+    fn rough_priority(&mut self, _: &R) -> f64 {
+        0.0
+    }
+}
+
+impl<R, F: Fn(&R) -> f64> ReductionPrioritizer<R> for F {
+    fn rough_priority(&mut self, reduction: &R) -> f64 {
+        self(reduction)
+    }
+}
+
 /// A reducer can be applied to the output of a [Generator] to remove numbers
 /// from the grid as long as it is still uniquely solveable using the provided
 /// [Solver]. This may be intentionally suboptimal to control the difficulty. A
@@ -138,20 +183,36 @@ impl Reducer<BacktrackingSolver, ThreadRng> {
     }
 }
 
-enum Reduction<R, C: Constraint<Reduction = R> + Clone> {
+/// An enumeration of the different reductions that can be applied to a Sudoku.
+/// `R` is the type of reduction of the Sudoku's constraint. See
+/// [Constraint::Reduction].
+pub enum Reduction<R> {
+
+    /// Remove a digit in a specified cell. This is applicable to any Sudoku.
     RemoveDigit {
+
+        /// The column of the cell whose digit to remove.
         column: usize,
+
+        /// The row of the cell whose digit to remove.
         row: usize
     },
+
+    /// Apply a reduction to the [Constraint] of the Sudoku.
     ReduceConstraint {
-        reduction: R,
-        constraint: PhantomData<C>
+
+        /// The reduction as emitted by [Constraint::list_reductions].
+        reduction: R
     }
 }
 
-impl<R, C: Constraint<Reduction = R> + Clone + 'static> Reduction<R, C> {
-    fn apply<S: Solver>(&self, sudoku: &mut Sudoku<C>, solution: &SudokuGrid,
-            solver: &S) {
+impl<R> Reduction<R> {
+    fn apply<S, C>(&self, sudoku: &mut Sudoku<C>, solution: &SudokuGrid,
+        solver: &S)
+    where
+        S: Solver,
+        C: Constraint<Reduction = R> + Clone + 'static
+    {
         match self {
             Reduction::RemoveDigit { column, row } => {
                 let number = sudoku.grid().get_cell(*column, *row).unwrap()
@@ -163,7 +224,7 @@ impl<R, C: Constraint<Reduction = R> + Clone + 'static> Reduction<R, C> {
                     sudoku.grid_mut().set_cell(*column, *row, number).unwrap();
                 }
             },
-            Reduction::ReduceConstraint { reduction: r, constraint: _ } => {
+            Reduction::ReduceConstraint { reduction: r} => {
                 let constraint = sudoku.constraint_mut();
                 let reduce_res = constraint.reduce(solution, r);
                 
@@ -179,8 +240,10 @@ impl<R, C: Constraint<Reduction = R> + Clone + 'static> Reduction<R, C> {
     }
 }
 
-fn reductions<R, C: Constraint<Reduction = R> + Clone>(sudoku: &Sudoku<C>)
-        -> impl Iterator<Item = Reduction<R, C>> {
+fn reductions<R, C>(sudoku: &Sudoku<C>) -> impl Iterator<Item = Reduction<R>>
+where
+    C: Constraint<Reduction = R> + Clone
+{
     let size = sudoku.grid().size();
     let digit_reductions = (0..size)
         .flat_map(move |column| (0..size)
@@ -192,10 +255,21 @@ fn reductions<R, C: Constraint<Reduction = R> + Clone>(sudoku: &Sudoku<C>)
         .list_reductions(sudoku.grid())
         .into_iter()
         .map(|r| Reduction::ReduceConstraint {
-            reduction: r,
-            constraint: PhantomData
+            reduction: r
         });
     digit_reductions.chain(constraint_reductions)
+}
+
+const ONE_OVER_SQRT_2: f64 = 0.70710678118654752440084436210485;
+
+fn prioritize<RED, P, RNG>(reduction: &RED, prioritizer: &mut P, rng: &mut RNG)
+    -> f64
+where
+    P: ReductionPrioritizer<RED>,
+    RNG: Rng
+{
+    let distr = Normal::new(0.0, ONE_OVER_SQRT_2).unwrap();
+    prioritizer.rough_priority(reduction) + rng.sample(distr)
 }
 
 impl<S: Solver, R: Rng> Reducer<S, R> {
@@ -216,21 +290,47 @@ impl<S: Solver, R: Rng> Reducer<S, R> {
         }
     }
 
-    /// Reduces the given Sudoku as much as possible. That is, removes random
-    /// digits until all remaining ones are necessary for the solver used by
-    /// this reducer to still be able to solve the Sudoku. All changes are done
-    /// to the given mutable Sudoku.
+    /// Reduces the given Sudoku as much as possible. That is, applies random
+    /// reductions (removing digits or reducing a reducible constraint) until
+    /// all remaining ones would cause the solver wrapped in this reducer to be
+    /// unable to solve the Sudoku. All changes are done to the given mutable
+    /// Sudoku.
     ///
     /// It is expected that the given `sudoku` is full, i.e. contains no empty
     /// cells.
+    ///
+    /// The order of reductions is fully random.
     pub fn reduce<C>(&mut self, sudoku: &mut Sudoku<C>)
     where
         C: Constraint + Clone + 'static
     {
-        let reductions = reductions(sudoku);
+        self.reduce_with_priority(sudoku, EqualPrioritizer)
+    }
+
+    /// Reduces the given Sudoku as much as possible. That is, applies random
+    /// reductions (removing digits or reducing a reducible constraint) until
+    /// all remaining ones would cause the solver wrapped in this reducer to be
+    /// unable to solve the Sudoku. All changes are done to the given mutable
+    /// Sudoku.
+    ///
+    /// It is expected that the given `sudoku` is full, i.e. contains no empty
+    /// cells.
+    ///
+    /// The order of reductions is influenced by the given `prioritizer`. See
+    /// the documentation of [ReductionPrioritizer].
+    pub fn reduce_with_priority<C, P>(&mut self, sudoku: &mut Sudoku<C>,
+        mut prioritizer: P)
+    where
+        C: Constraint + Clone + 'static,
+        P: ReductionPrioritizer<Reduction<C::Reduction>>
+    {
+        let mut reductions = reductions(sudoku)
+            .map(|r| (prioritize(&r, &mut prioritizer, &mut self.rng), r))
+            .collect::<Vec<_>>();
+        reductions.sort_by(|(p1, _), (p2, _)| p1.partial_cmp(p2).unwrap());
         let solution = sudoku.grid().clone();
 
-        for reduction in shuffle(&mut self.rng, reductions) {
+        for (_, reduction) in reductions {
             reduction.apply(sudoku, &solution, &self.solver);
         }
     }
@@ -633,5 +733,42 @@ mod tests {
 
             true
         })
+    }
+
+    #[test]
+    fn reducer_respects_priorization() {
+        let sudoku = Sudoku::parse("2x2;
+            1,2,3,4,
+            3,4,1,2,
+            2,3,4,1,
+            4,1,2,3", DefaultConstraint).unwrap();
+        let mut reducer = Reducer::new_default();
+        let mut top_left = 0;
+        let mut bottom_right = 0;
+
+        for _ in 0..1000 {
+            let mut sudoku = sudoku.clone();
+            reducer.reduce_with_priority(&mut sudoku,
+                |r: &Reduction<()>| match r {
+                    &Reduction::RemoveDigit { column, row } =>
+                        column as f64 * 0.05 + row as f64 * 0.2,
+                    _ => panic!(
+                        "got constraint reduction for default constraint")
+                });
+
+            if sudoku.grid().get_cell(0, 0).unwrap().is_some() {
+                top_left += 1;
+            }
+
+            if sudoku.grid().get_cell(3, 3).unwrap().is_some() {
+                bottom_right += 1;
+            }
+        }
+
+        // Assert some true separtion
+
+        assert!(top_left > 0);
+        assert!(bottom_right > 0);
+        assert!(5 * top_left < 4 * bottom_right);
     }
 }
