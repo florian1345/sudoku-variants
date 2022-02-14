@@ -13,6 +13,8 @@ use rand::rngs::ThreadRng;
 
 use rand_distr::Normal;
 
+use std::f64::consts;
+
 /// A generator randomly generates a full [Sudoku], that is, a Sudoku with no
 /// missing digits. It uses a random number generator to decide the content.
 /// For most cases, sensible defaults are provided by [Generator::new_default].
@@ -260,15 +262,13 @@ where
     digit_reductions.chain(constraint_reductions)
 }
 
-const ONE_OVER_SQRT_2: f64 = 0.7071067811865476;
-
 fn prioritize<RED, P, RNG>(reduction: &RED, prioritizer: &mut P, rng: &mut RNG)
     -> f64
 where
     P: ReductionPrioritizer<RED>,
     RNG: Rng
 {
-    let distr = Normal::new(0.0, ONE_OVER_SQRT_2).unwrap();
+    let distr = Normal::new(0.0, consts::FRAC_1_SQRT_2).unwrap();
     prioritizer.rough_priority(reduction) + rng.sample(distr)
 }
 
