@@ -260,7 +260,7 @@ where
     digit_reductions.chain(constraint_reductions)
 }
 
-const ONE_OVER_SQRT_2: f64 = 0.70710678118654752440084436210485;
+const ONE_OVER_SQRT_2: f64 = 0.7071067811865476;
 
 fn prioritize<RED, P, RNG>(reduction: &RED, prioritizer: &mut P, rng: &mut RNG)
     -> f64
