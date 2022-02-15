@@ -54,10 +54,10 @@ impl<R: Rng> Generator<R> {
         }
     }
 
-    fn generate_rec<C: Constraint + Clone>(&mut self, sudoku: &mut Sudoku<C>,
+    fn fill_rec<C: Constraint + Clone>(&mut self, sudoku: &mut Sudoku<C>,
             column: usize, row: usize) -> bool {
         let size = sudoku.grid().size();
-        
+
         if row == size {
             return true;
         }
@@ -65,12 +65,16 @@ impl<R: Rng> Generator<R> {
         let next_column = (column + 1) % size;
         let next_row =
             if next_column == 0 { row + 1 } else { row };
-        
+
+        if sudoku.grid().get_cell(column, row).unwrap().is_some() {
+            return self.fill_rec(sudoku, next_column, next_row);
+        }
+
         for number in shuffle(&mut self.rng, 1..=size) {
             if sudoku.is_valid_number(column, row, number).unwrap() {
                 sudoku.grid_mut().set_cell(column, row, number).unwrap();
 
-                if self.generate_rec(sudoku, next_column, next_row) {
+                if self.fill_rec(sudoku, next_column, next_row) {
                     return true;
                 }
 
@@ -79,6 +83,35 @@ impl<R: Rng> Generator<R> {
         }
 
         false
+    }
+
+    /// Fills the given [Sudoku] with random digits that satisfy its constraint
+    /// and match all already present digits. If it is not possible, an error
+    /// will be returned.
+    ///
+    /// If no error is returned, it is guaranteed that [Sudoku::is_valid] on
+    /// `sudoku` result returns `true` after this operation. Otherwise, it
+    /// remains unchanged.
+    ///
+    /// # Arguments
+    ///
+    /// * `sudoku`: The Sudoku to fill with random digits.
+    ///
+    /// # Errors
+    ///
+    /// * `SudokuError::UnsatisfiableConstraint` If there are no sets of digits
+    /// that can be entered into the Sudoku that match its constraint without
+    /// changing digits already present.
+    pub fn fill<C>(&mut self, sudoku: &mut Sudoku<C>) -> SudokuResult<()>
+    where
+        C: Constraint + Clone
+    {
+        if self.fill_rec(sudoku, 0, 0) {
+            Ok(())
+        }
+        else {
+            Err(SudokuError::UnsatisfiableConstraint)
+        }
     }
 
     /// Generates a new random [Sudoku] with all digits that matches the given
@@ -105,17 +138,15 @@ impl<R: Rng> Generator<R> {
     /// is invalid (zero).
     /// * `SudokuError::UnsatisfiableConstraint` If there are no grids with the
     /// given dimensions that match the provided `constraint`.
-    pub fn generate<C: Constraint + Clone>(&mut self, block_width: usize,
-            block_height: usize, constraint: C) -> SudokuResult<Sudoku<C>> {
+    pub fn generate<C>(&mut self, block_width: usize, block_height: usize,
+        constraint: C) -> SudokuResult<Sudoku<C>>
+    where
+        C: Constraint + Clone
+    {
         let mut sudoku =
             Sudoku::new_empty(block_width, block_height, constraint)?;
-
-        if self.generate_rec(&mut sudoku, 0, 0) {
-            Ok(sudoku)
-        }
-        else {
-            Err(SudokuError::UnsatisfiableConstraint)
-        }
+        self.fill(&mut sudoku)?;
+        Ok(sudoku)
     }
 }
 
@@ -408,6 +439,39 @@ mod tests {
             assert!(*count >= 2600 && *count <= 3400,
                 "Count is not in range [2600, 3400].");
         }
+    }
+
+    #[test]
+    fn filled_sudoku_keeps_digits() {
+        let mut sudoku = Sudoku::parse("2x2;\
+             ,1, ,3,\
+            2, , , ,\
+             ,4, , ,\
+             , , , ", DefaultConstraint).unwrap();
+        let mut generator = Generator::new_default();
+        generator.fill(&mut sudoku).unwrap();
+
+        assert!(sudoku.is_valid());
+        assert!(sudoku.grid().is_full());
+        assert_eq!(Some(1), sudoku.grid().get_cell(1, 0).unwrap());
+        assert_eq!(Some(3), sudoku.grid().get_cell(3, 0).unwrap());
+        assert_eq!(Some(2), sudoku.grid().get_cell(0, 1).unwrap());
+        assert_eq!(Some(4), sudoku.grid().get_cell(1, 2).unwrap());
+    }
+
+    #[test]
+    fn unsatisfiable_filled_sudoku_is_not_changed() {
+        let mut sudoku = Sudoku::parse("2x2;\
+             ,1, ,3,\
+            2, , , ,\
+             , , , ,\
+             , ,2, ", DefaultConstraint).unwrap();
+        let mut generator = Generator::new_default();
+        let grid_before = sudoku.grid().clone();
+        let result = generator.fill(&mut sudoku);
+
+        assert_eq!(Err(SudokuError::UnsatisfiableConstraint), result);
+        assert_eq!(&grid_before, sudoku.grid());
     }
 
     #[test]
