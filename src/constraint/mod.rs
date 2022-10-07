@@ -1,4 +1,4 @@
-//! This module defines constraints which can be applied tu Sudoku grids, thus
+//! This module defines constraints which can be applied to Sudoku grids, thus
 //! specifying the rules of the puzzle.
 //!
 //! Besides the definition of the [Constraint] trait, this crate contains some
@@ -110,7 +110,7 @@
 //!
 //! Deriving `Clone` is important, since occasionally Sudoku need to be cloned.
 //! Sudoku therefore implements `Clone`, which requires its constraint to be
-//! cloneable aswell. Note that `Clone` is not required by the `Constraint`
+//! cloneable as well. Note that `Clone` is not required by the `Constraint`
 //! trait, since that would make it impossible to create `Constraint`-trait
 //! objects, which are used in the `DynamicConstraint`. Instead, the library
 //! internally wraps constraints to create cloneable trait objects. This
@@ -303,7 +303,7 @@ pub trait Constraint {
     fn to_objects(&self) -> Vec<&dyn Any>
     where
         Self: Sized + 'static
-    {
+    { f
         vec![self]
     }
 }
