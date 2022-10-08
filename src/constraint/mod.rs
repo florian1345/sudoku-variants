@@ -303,7 +303,7 @@ pub trait Constraint {
     fn to_objects(&self) -> Vec<&dyn Any>
     where
         Self: Sized + 'static
-    { f
+    {
         vec![self]
     }
 }
