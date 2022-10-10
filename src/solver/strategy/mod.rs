@@ -489,8 +489,8 @@ impl<C: Constraint + Clone> SudokuInfo<C> {
         }
 
         let mut changed = false;
-        let iter = (&mut self.sudoku).grid_mut().cells_mut().iter_mut()
-            .zip((&mut self.cell_options).iter_mut())
+        let iter = self.sudoku.grid_mut().cells_mut().iter_mut()
+            .zip(self.cell_options.iter_mut())
             .zip(other.sudoku().grid().cells().iter()
                 .zip(other.cell_options().iter()));
         
